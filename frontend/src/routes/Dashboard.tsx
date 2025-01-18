@@ -3,23 +3,45 @@ import React, { useEffect, useRef, useState } from 'react'
 export default function Dashboard() {
     const [tools, setTools] = useState('mouse')
     const [strokeStyle, setStrokeStyle] = useState({ color: '#fff', lineWidth: 3 })
+    const [eraserStyle, setEraser] = useState(3)
+    const [strokeEdit, setStrokeEdit] = useState(false)
+    const [eraserEdit, setEraserEdit] = useState(false)
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [mouseClicked, setMouseClicked] = useState(false);
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
-        if (ctx && mouseClicked && coordinates && tools == 'pen') {
-            ctx.lineWidth = strokeStyle.lineWidth;
-            ctx.lineCap = "round";
-            ctx.strokeStyle = strokeStyle.color;
+        if (ctx && mouseClicked && coordinates) {
+            if (tools == 'pen') {
+                ctx.lineWidth = strokeStyle.lineWidth;
+                ctx.lineCap = "round";
+                ctx.strokeStyle = strokeStyle.color;
 
-            ctx.lineTo(coordinates.x, coordinates.y);
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(coordinates.x, coordinates.y)
+                ctx.lineTo(coordinates.x, coordinates.y);
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(coordinates.x, coordinates.y)
+            }
+            if (tools == 'eraser') {
+                ctx.globalCompositeOperation = "destination-out";
+                ctx.lineWidth = eraserStyle;
+                ctx.lineCap = "round";
+                ctx.strokeStyle = 'white'
+                ctx.lineTo(coordinates.x, coordinates.y);
+                ctx.stroke();
+                ctx.globalCompositeOperation = "source-over";
+            }
         }
-    }, [coordinates, tools])
+        if (strokeEdit || eraserEdit) {
+            const stroketimeOut = setTimeout(() => {
+                setStrokeEdit(false)
+                setEraserEdit(false)
+            }, 3000);
+            return () => clearInterval(stroketimeOut)
+        }
+
+    }, [coordinates, tools, strokeEdit, eraserEdit])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
@@ -65,8 +87,8 @@ export default function Dashboard() {
             <div className='bg-zinc-800 w-fit h-fit fixed top-10 px-1 right-10 rounded-lg flex flex-col divide-y-[1px] divide-[#e3e3e8]'>
                 <span className='relative'>
                     <img aria-selected={tools == 'pen'} onClick={() => setTools('pen')} src="/pen.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
-                    <div aria-selected={tools != 'pen'} className='fixed aria-selected:hidden left-10 top-10 text-white text-sm font-normal flex flex-col gap-3 py-3 px-3 rounded-md bg-zinc-800'>
-                        <span className="flex flex-col gap-2">
+                    <div className='fixed left-10 top-10 text-white text-sm font-normal flex flex-col'>
+                        <span aria-selected={tools == 'pen'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
                             <p>Color</p>
                             <span className='flex gap-2'>
                                 <div aria-selected={strokeStyle.color == '#fff'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#fff' }))} className="bg-white h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
@@ -76,10 +98,24 @@ export default function Dashboard() {
                                 <div aria-selected={strokeStyle.color == '#4ade80'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#4ade80' }))} className="bg-green-400 h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
                             </span>
                         </span>
-                        <span className="flex flex-col gap-2">
+                        <span aria-selected={tools == 'pen' || tools == 'eraser'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
                             <p>Stroke Width</p>
                             <span className='flex gap-2 items-center'>
-                                <input type="range" />
+                                <input min={1} max={20} defaultValue={strokeEdit ? strokeStyle.lineWidth : eraserStyle} onChange={(e) => {
+                                    if (tools == 'pen') {
+                                        setStrokeStyle((prev) => ({ ...prev, lineWidth: Number(e.target.value) }))
+                                    }
+                                    if (tools == 'eraser') {
+                                        setEraser(Number(e.target.value))
+                                    }
+                                }} onInput={() => {
+                                    if (tools == 'pen') {
+                                        setStrokeEdit(true)
+                                    }
+                                    if (tools == 'eraser') {
+                                        setEraserEdit(true)
+                                    }
+                                }} type="range" />
                             </span>
                         </span>
                     </div>
@@ -93,6 +129,20 @@ export default function Dashboard() {
                     <div></div>
                 </span>
             </div>
+            {(strokeEdit || eraserEdit) && (
+                <div
+                    style={{
+                        width: `${strokeEdit ? strokeStyle.lineWidth : eraserStyle}px`,
+                        height: `${strokeEdit ? strokeStyle.lineWidth : eraserStyle}px`,
+                        backgroundColor: strokeStyle.color,
+                        borderRadius: "50%",
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        pointerEvents: "none",
+                    }}
+                />
+            )}
         </div >
     )
 }
