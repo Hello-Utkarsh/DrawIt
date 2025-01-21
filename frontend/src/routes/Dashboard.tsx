@@ -8,6 +8,7 @@ export default function Dashboard() {
     const [eraserEdit, setEraserEdit] = useState(false)
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [mouseClicked, setMouseClicked] = useState(false);
+    const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
@@ -17,6 +18,7 @@ export default function Dashboard() {
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
                 ctx.strokeStyle = strokeStyle.color;
+
 
                 ctx.lineTo(coordinates.x, coordinates.y);
                 ctx.stroke()
@@ -31,6 +33,16 @@ export default function Dashboard() {
                 ctx.lineTo(coordinates.x, coordinates.y);
                 ctx.stroke();
                 ctx.globalCompositeOperation = "source-over";
+            }
+            if (tools == 'rectangle' && rectStart) {
+                if (ctx && canvasRef.current && tools == 'rectangle') {
+                    ctx.strokeStyle = 'white';
+                    const width = coordinates.x - rectStart.x
+                    const height = coordinates.y - rectStart.y;
+                    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                    ctx.strokeRect(rectStart.x, rectStart.y, width, height)
+                    return
+                }
             }
         }
         if (strokeEdit || eraserEdit) {
@@ -47,10 +59,17 @@ export default function Dashboard() {
         setMouseClicked(true);
 
         const ctx = canvasRef.current?.getContext("2d");
+        if (ctx && tools == 'rectangle' && canvasRef.current) {
+            const rect = canvasRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            setRectStart({ x, y })
+        }
         if (ctx && canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
+            
 
             ctx.beginPath();
             ctx.moveTo(x, y)
@@ -83,6 +102,7 @@ export default function Dashboard() {
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                style={tools == 'rectangle' ? { cursor: 'crosshair' } : undefined}
             />
             <div className='bg-zinc-800 w-fit h-fit fixed top-10 px-1 right-10 rounded-lg flex flex-col divide-y-[1px] divide-[#e3e3e8]'>
                 <span className='relative'>
@@ -126,6 +146,10 @@ export default function Dashboard() {
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'mouse'} onClick={() => setTools('mouse')} src="/pointer.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
+                    <div></div>
+                </span>
+                <span className='relative'>
+                    <img aria-selected={tools == 'rectangle'} onClick={() => setTools('rectangle')} src="/rectangle.png" className='w-8 h-8 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
                     <div></div>
                 </span>
             </div>
