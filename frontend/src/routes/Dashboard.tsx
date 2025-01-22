@@ -1,5 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react'
 
+interface Rectangle {
+    type: 'rectangle' | 'circle';
+    points: { x: number, y: number }; // Single point for rectangle or circle
+    width: number;
+    height: number;
+}
+
+interface Freehand {
+    type: 'freehand';
+    points: { x: number, y: number }[]; // Array of points for freehand
+}
+
+type shapes = Rectangle | Freehand;
+
 export default function Dashboard() {
     const [tools, setTools] = useState('mouse')
     const [strokeStyle, setStrokeStyle] = useState({ color: '#fff', lineWidth: 3 })
@@ -10,6 +24,7 @@ export default function Dashboard() {
     const [mouseClicked, setMouseClicked] = useState(false);
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
+    const [shapes, setShapes] = useState<shapes[]>()
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
@@ -36,11 +51,18 @@ export default function Dashboard() {
             }
             if (tools == 'rectangle' && rectStart) {
                 if (ctx && canvasRef.current && tools == 'rectangle') {
-                    ctx.strokeStyle = 'white';
+                    ctx.strokeStyle = strokeStyle.color;
+                    ctx.lineWidth = strokeStyle.lineWidth;
                     const width = coordinates.x - rectStart.x
                     const height = coordinates.y - rectStart.y;
                     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
                     ctx.strokeRect(rectStart.x, rectStart.y, width, height)
+                    console.log(shapes)
+                    shapes?.map((shape) => {
+                        if (shape.type == 'rectangle') {
+                            ctx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
+                        }
+                    })
                     return
                 }
             }
@@ -69,7 +91,7 @@ export default function Dashboard() {
             const rect = canvasRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
+
 
             ctx.beginPath();
             ctx.moveTo(x, y)
@@ -84,10 +106,21 @@ export default function Dashboard() {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
+
         setCoordinates({ x, y });
     };
 
     const handleMouseUp = () => {
+        if (tools == 'rectangle' && rectStart && coordinates) {
+            setShapes((prev) => {
+                if (prev != null) {
+                    return [...prev, { type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y) }]
+                }
+                else {
+                    return [{ type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y) }]
+                }
+            })
+        }
         setMouseClicked(false);
         setCoordinates(null);
     };
