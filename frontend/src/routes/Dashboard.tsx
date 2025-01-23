@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 
 interface Rectangle {
     type: 'rectangle';
-    points: { x: number, y: number }; // Single point for rectangle or circle
+    points: { x: number, y: number };
     width: number;
     height: number;
     strokeWidth: number
@@ -20,7 +20,9 @@ interface Circle {
 
 interface Freehand {
     type: 'freehand';
-    points: { x: number, y: number }[]; // Array of points for freehand
+    points: { x: number, y: number }[];
+    color: string
+    lineWidth: number
 }
 
 type shapes = Rectangle | Freehand | Circle;
@@ -36,26 +38,11 @@ export default function Dashboard() {
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
+    const [freehandPoints, setFreehand] = useState<{ x: number, y: number }[] | null>(null)
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            shapes?.map((shape) => {
-                if (shape.type == 'rectangle') {
-                    ctx.lineWidth = shape.strokeWidth
-                    ctx.strokeStyle = shape.color
-                    ctx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
-                }
-                if (shape.type == 'circle') {
-                    ctx.strokeStyle = shape.color;
-                    ctx.lineWidth = shape.lineWidth;
-                    ctx.beginPath()
-                    ctx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
-                    ctx.stroke();
-                    ctx.closePath();
-                }
-            })
             if (tools == 'pen') {
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
@@ -76,27 +63,59 @@ export default function Dashboard() {
                 ctx.stroke();
                 ctx.globalCompositeOperation = "source-over";
             }
-            if (tools == 'circle' && rectStart) {
-                if (ctx && tools == 'circle') {
-                    ctx.strokeStyle = strokeStyle.color;
-                    ctx.lineWidth = strokeStyle.lineWidth;
-                    const centerX = (rectStart.x + coordinates.x) / 2;
-                    const centerY = (rectStart.y + coordinates.y) / 2;
-                    const radius = Math.abs(((coordinates.x - rectStart.x) / 2 + (coordinates.y - rectStart.y) / 2) / 2)
-                    ctx.beginPath()
-                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
-                    ctx.stroke();
-                    ctx.closePath();
+            if (tools == 'rectangle' || tools == 'circle') {
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                console.log(shapes)
+                shapes?.map((shape) => {
+                    if (shape.type == 'rectangle') {
+                        ctx.lineWidth = shape.strokeWidth
+                        ctx.strokeStyle = shape.color
+                        ctx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
+                    }
+                    if (shape.type == 'circle') {
+                        ctx.strokeStyle = shape.color;
+                        ctx.lineWidth = shape.lineWidth;
+                        ctx.beginPath()
+                        ctx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                    if (shape.type == 'freehand') {
+                        console.log(shape.points)
+
+                        ctx.beginPath()
+                        shape.points.map((point) => {
+                            ctx.lineWidth = shape.lineWidth;
+                            ctx.lineCap = "round";
+                            ctx.strokeStyle = shape.color;
+                            ctx.lineTo(point.x, point.y);
+                            ctx.stroke()
+                        })
+                    }
+                })
+                if (tools == 'circle' && rectStart) {
+                    if (ctx && tools == 'circle') {
+                        ctx.strokeStyle = strokeStyle.color;
+                        ctx.lineWidth = strokeStyle.lineWidth;
+                        const centerX = (rectStart.x + coordinates.x) / 2;
+                        const centerY = (rectStart.y + coordinates.y) / 2;
+                        const radius = Math.abs(((coordinates.x - rectStart.x) / 2 + (coordinates.y - rectStart.y) / 2) / 2)
+                        ctx.beginPath()
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
                 }
-            }
-            if (tools == 'rectangle' && rectStart) {
-                if (ctx && tools == 'rectangle') {
-                    ctx.strokeStyle = strokeStyle.color;
-                    ctx.lineWidth = strokeStyle.lineWidth;
-                    const width = coordinates.x - rectStart.x
-                    const height = coordinates.y - rectStart.y;
-                    ctx.strokeRect(rectStart.x, rectStart.y, width, height)
-                    return
+                if (tools == 'rectangle' && rectStart) {
+                    if (ctx && tools == 'rectangle') {
+                        ctx.strokeStyle = strokeStyle.color;
+                        ctx.lineWidth = strokeStyle.lineWidth;
+                        const width = coordinates.x - rectStart.x
+                        const height = coordinates.y - rectStart.y;
+                        ctx.strokeRect(rectStart.x, rectStart.y, width, height)
+                        ctx.closePath()
+                        return
+                    }
                 }
             }
         }
@@ -141,9 +160,31 @@ export default function Dashboard() {
 
 
         setCoordinates({ x, y });
+        setFreehand((prev) => {
+            if (prev) {
+                return [...prev, { x, y }]
+            } else {
+                return [{ x, y }]
+            }
+        }
+        )
     };
 
     const handleMouseUp = () => {
+        const ctx = canvasRef.current?.getContext("2d");
+        if (ctx) {
+            ctx.closePath()
+        }
+        if (tools == 'pen' && freehandPoints) {
+            setShapes((prev) => {
+                if (prev != null) {
+                    return [...prev, { type: 'freehand', points: freehandPoints, color: strokeStyle.color, lineWidth: strokeStyle.lineWidth }]
+                } else {
+                    return [{ type: 'freehand', points: freehandPoints, color: strokeStyle.color, lineWidth: strokeStyle.lineWidth }]
+                }
+            })
+            setFreehand(null)
+        }
         if (tools == 'rectangle' && rectStart && coordinates) {
             setShapes((prev) => {
                 if (prev != null) {
@@ -177,7 +218,7 @@ export default function Dashboard() {
                 ref={canvasRef}
                 width={window?.innerWidth}
                 height={window?.innerHeight}
-                className='w-[100vw] h-[100vh]'
+                className='w-[100vw] h-[100vh] z-10'
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -187,7 +228,7 @@ export default function Dashboard() {
                 <span className='relative'>
                     <img aria-selected={tools == 'pen'} onClick={() => setTools('pen')} src="/pen.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
                     <div className='fixed left-10 top-10 text-white text-sm font-normal flex flex-col'>
-                        <span aria-selected={tools == 'pen' || tools == 'rectangle'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
                             <p>Color</p>
                             <span className='flex gap-2'>
                                 <div aria-selected={strokeStyle.color == '#fff'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#fff' }))} className="bg-white h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
@@ -197,7 +238,7 @@ export default function Dashboard() {
                                 <div aria-selected={strokeStyle.color == '#4ade80'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#4ade80' }))} className="bg-green-400 h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
                             </span>
                         </span>
-                        <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle' || tools == 'circle'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
                             <p>Stroke Width</p>
                             <span className='flex gap-2 items-center'>
                                 <input min={1} max={20} defaultValue={strokeEdit ? strokeStyle.lineWidth : eraserStyle} onChange={(e) => {
