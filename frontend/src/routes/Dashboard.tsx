@@ -28,6 +28,8 @@ interface Freehand {
 type shapes = Rectangle | Freehand | Circle;
 
 export default function Dashboard() {
+    const backgroundRef = useRef<HTMLCanvasElement | null>(null)
+    const [freehandPoints, setFreehand] = useState<{ x: number, y: number }[] | null>(null)
     const [tools, setTools] = useState('mouse')
     const [strokeStyle, setStrokeStyle] = useState({ color: '#fff', lineWidth: 3 })
     const [eraserStyle, setEraser] = useState(3)
@@ -38,7 +40,6 @@ export default function Dashboard() {
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
-    const [freehandPoints, setFreehand] = useState<{ x: number, y: number }[] | null>(null)
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
@@ -63,59 +64,29 @@ export default function Dashboard() {
                 ctx.stroke();
                 ctx.globalCompositeOperation = "source-over";
             }
-            if (tools == 'rectangle' || tools == 'circle') {
-                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                console.log(shapes)
-                shapes?.map((shape) => {
-                    if (shape.type == 'rectangle') {
-                        ctx.lineWidth = shape.strokeWidth
-                        ctx.strokeStyle = shape.color
-                        ctx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
-                    }
-                    if (shape.type == 'circle') {
-                        ctx.strokeStyle = shape.color;
-                        ctx.lineWidth = shape.lineWidth;
-                        ctx.beginPath()
-                        ctx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
-                        ctx.stroke();
-                        ctx.closePath();
-                    }
-                    if (shape.type == 'freehand') {
-                        console.log(shape.points)
 
-                        ctx.beginPath()
-                        shape.points.map((point) => {
-                            ctx.lineWidth = shape.lineWidth;
-                            ctx.lineCap = "round";
-                            ctx.strokeStyle = shape.color;
-                            ctx.lineTo(point.x, point.y);
-                            ctx.stroke()
-                        })
-                    }
-                })
-                if (tools == 'circle' && rectStart) {
-                    if (ctx && tools == 'circle') {
-                        ctx.strokeStyle = strokeStyle.color;
-                        ctx.lineWidth = strokeStyle.lineWidth;
-                        const centerX = (rectStart.x + coordinates.x) / 2;
-                        const centerY = (rectStart.y + coordinates.y) / 2;
-                        const radius = Math.abs(((coordinates.x - rectStart.x) / 2 + (coordinates.y - rectStart.y) / 2) / 2)
-                        ctx.beginPath()
-                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
-                        ctx.stroke();
-                        ctx.closePath();
-                    }
+            if (tools == 'circle' && rectStart) {
+                if (ctx && tools == 'circle') {
+                    ctx.strokeStyle = strokeStyle.color;
+                    ctx.lineWidth = strokeStyle.lineWidth;
+                    const centerX = (rectStart.x + coordinates.x) / 2;
+                    const centerY = (rectStart.y + coordinates.y) / 2;
+                    const radius = Math.abs(((coordinates.x - rectStart.x) / 2 + (coordinates.y - rectStart.y) / 2) / 2)
+                    ctx.beginPath()
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
+                    ctx.stroke();
+                    ctx.closePath();
                 }
-                if (tools == 'rectangle' && rectStart) {
-                    if (ctx && tools == 'rectangle') {
-                        ctx.strokeStyle = strokeStyle.color;
-                        ctx.lineWidth = strokeStyle.lineWidth;
-                        const width = coordinates.x - rectStart.x
-                        const height = coordinates.y - rectStart.y;
-                        ctx.strokeRect(rectStart.x, rectStart.y, width, height)
-                        ctx.closePath()
-                        return
-                    }
+            }
+            if (tools == 'rectangle' && rectStart) {
+                if (ctx && tools == 'rectangle') {
+                    ctx.strokeStyle = strokeStyle.color;
+                    ctx.lineWidth = strokeStyle.lineWidth;
+                    const width = coordinates.x - rectStart.x
+                    const height = coordinates.y - rectStart.y;
+                    ctx.strokeRect(rectStart.x, rectStart.y, width, height)
+                    ctx.closePath()
+                    return
                 }
             }
         }
@@ -148,6 +119,14 @@ export default function Dashboard() {
             ctx.beginPath();
             ctx.moveTo(x, y)
             setCoordinates({ x, y });
+            setFreehand((prev) => {
+                if (prev) {
+                    return [...prev, { x, y }]
+                } else {
+                    return [{ x, y }]
+                }
+            }
+            )
         }
     };
 
@@ -171,11 +150,25 @@ export default function Dashboard() {
     };
 
     const handleMouseUp = () => {
-        const ctx = canvasRef.current?.getContext("2d");
-        if (ctx) {
-            ctx.closePath()
-        }
+
         if (tools == 'pen' && freehandPoints) {
+            const btx = backgroundRef.current?.getContext("2d");
+            const ctx = canvasRef.current?.getContext("2d");
+            if (btx && tools == 'pen') {
+                btx.strokeStyle = 'white'
+                btx.lineWidth = strokeStyle.lineWidth
+                btx.lineCap = 'round'
+                btx.beginPath()
+                freehandPoints.map((point) => {
+                    console.log(point)
+                    btx.lineWidth = strokeStyle.lineWidth;
+                    btx.lineCap = "round";
+                    btx.strokeStyle = strokeStyle.color;
+                    btx.lineTo(point.x, point.y);
+                })
+                btx.stroke()
+            }
+            ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
             setShapes((prev) => {
                 if (prev != null) {
                     return [...prev, { type: 'freehand', points: freehandPoints, color: strokeStyle.color, lineWidth: strokeStyle.lineWidth }]
@@ -218,12 +211,17 @@ export default function Dashboard() {
                 ref={canvasRef}
                 width={window?.innerWidth}
                 height={window?.innerHeight}
-                className='w-[100vw] h-[100vh] z-10'
+                className='w-[100vw] h-[100vh]'
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 style={(tools == 'rectangle' || tools == 'circle') ? { cursor: 'crosshair' } : undefined}
             />
+            <canvas
+                ref={backgroundRef}
+                width={window?.innerWidth}
+                height={window?.innerHeight}
+                className='w-[100vw] h-[100vh] absolute top-0 left-0 -z-10' />
             <div className='bg-zinc-800 w-fit h-fit fixed top-10 px-1 right-10 rounded-lg flex flex-col divide-y-[1px] divide-[#e3e3e8]'>
                 <span className='relative'>
                     <img aria-selected={tools == 'pen'} onClick={() => setTools('pen')} src="/pen.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
