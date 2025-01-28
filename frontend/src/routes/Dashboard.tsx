@@ -43,30 +43,34 @@ export default function Dashboard() {
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
+        const btx = backgroundRef.current?.getContext("2d");
+        if (tools == 'eraser' && btx && coordinates && mouseClicked) {
+            btx.globalCompositeOperation = "destination-out";
+            btx.lineWidth = eraserStyle;
+            btx.lineCap = "round";
+            btx.strokeStyle = 'white'
+            btx.beginPath()
+            btx.lineTo(coordinates.x, coordinates.y);
+            btx.stroke();
+            btx.closePath()
+            btx.globalCompositeOperation = "source-over";
+        }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
             if (tools == 'pen') {
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
                 ctx.strokeStyle = strokeStyle.color;
 
-
                 ctx.lineTo(coordinates.x, coordinates.y);
                 ctx.stroke()
                 ctx.beginPath()
                 ctx.moveTo(coordinates.x, coordinates.y)
-            }
-            if (tools == 'eraser') {
-                ctx.globalCompositeOperation = "destination-out";
-                ctx.lineWidth = eraserStyle;
-                ctx.lineCap = "round";
-                ctx.strokeStyle = 'white'
-                ctx.lineTo(coordinates.x, coordinates.y);
-                ctx.stroke();
-                ctx.globalCompositeOperation = "source-over";
+                ctx.closePath()
             }
 
             if (tools == 'circle' && rectStart) {
                 if (ctx && tools == 'circle') {
+                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
                     ctx.strokeStyle = strokeStyle.color;
                     ctx.lineWidth = strokeStyle.lineWidth;
                     const centerX = (rectStart.x + coordinates.x) / 2;
@@ -80,10 +84,12 @@ export default function Dashboard() {
             }
             if (tools == 'rectangle' && rectStart) {
                 if (ctx && tools == 'rectangle') {
+                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
                     ctx.strokeStyle = strokeStyle.color;
                     ctx.lineWidth = strokeStyle.lineWidth;
                     const width = coordinates.x - rectStart.x
                     const height = coordinates.y - rectStart.y;
+                    ctx.beginPath()
                     ctx.strokeRect(rectStart.x, rectStart.y, width, height)
                     ctx.closePath()
                     return
@@ -119,14 +125,15 @@ export default function Dashboard() {
             ctx.beginPath();
             ctx.moveTo(x, y)
             setCoordinates({ x, y });
-            setFreehand((prev) => {
-                if (prev) {
-                    return [...prev, { x, y }]
-                } else {
-                    return [{ x, y }]
-                }
+            if (tools == 'pen') {
+                setFreehand((prev) => {
+                    if (prev) {
+                        return [...prev, { x, y }]
+                    } else {
+                        return [{ x, y }]
+                    }
+                })
             }
-            )
         }
     };
 
@@ -139,34 +146,31 @@ export default function Dashboard() {
 
 
         setCoordinates({ x, y });
-        setFreehand((prev) => {
-            if (prev) {
-                return [...prev, { x, y }]
-            } else {
-                return [{ x, y }]
-            }
+        if (tools == 'pen') {
+            setFreehand((prev) => {
+                if (prev) {
+                    return [...prev, { x, y }]
+                } else {
+                    return [{ x, y }]
+                }
+            })
         }
-        )
     };
 
     const handleMouseUp = () => {
-
+        const btx = backgroundRef.current?.getContext("2d");
+        const ctx = canvasRef.current?.getContext("2d");
         if (tools == 'pen' && freehandPoints) {
-            const btx = backgroundRef.current?.getContext("2d");
-            const ctx = canvasRef.current?.getContext("2d");
-            if (btx && tools == 'pen') {
+            if (btx) {
                 btx.strokeStyle = 'white'
                 btx.lineWidth = strokeStyle.lineWidth
                 btx.lineCap = 'round'
                 btx.beginPath()
                 freehandPoints.map((point) => {
-                    console.log(point)
-                    btx.lineWidth = strokeStyle.lineWidth;
-                    btx.lineCap = "round";
-                    btx.strokeStyle = strokeStyle.color;
                     btx.lineTo(point.x, point.y);
                 })
                 btx.stroke()
+                btx.closePath()
             }
             ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
             setShapes((prev) => {
@@ -178,7 +182,15 @@ export default function Dashboard() {
             })
             setFreehand(null)
         }
-        if (tools == 'rectangle' && rectStart && coordinates) {
+        if (tools == 'rectangle' && coordinates && rectStart && btx) {
+            ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            btx.beginPath()
+            btx.strokeStyle = strokeStyle.color;
+            btx.lineWidth = strokeStyle.lineWidth;
+            const width = coordinates.x - rectStart.x
+            const height = coordinates.y - rectStart.y;
+            btx.strokeRect(rectStart.x, rectStart.y, width, height)
+            btx.closePath()
             setShapes((prev) => {
                 if (prev != null) {
                     return [...prev, { type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), strokeWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
@@ -188,10 +200,18 @@ export default function Dashboard() {
                 }
             })
         }
-        if (tools == 'circle' && rectStart && coordinates) {
+        if (tools == 'circle' && rectStart && coordinates && btx) {
+            ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            btx.strokeStyle = strokeStyle.color;
+            btx.lineWidth = strokeStyle.lineWidth;
             const centerX = (rectStart.x + coordinates.x) / 2;
             const centerY = (rectStart.y + coordinates.y) / 2;
             const radius = Math.abs(((coordinates.x - rectStart.x) / 2 + (coordinates.y - rectStart.y) / 2) / 2)
+            btx.beginPath()
+            btx.arc(centerX, centerY, radius, 0, Math.PI * 2)
+            btx.stroke();
+            btx.closePath();
+            btx.closePath()
             setShapes((prev) => {
                 if (prev != null) {
                     return [...prev, { type: 'circle', centerX, centerY, radius, color: strokeStyle.color, lineWidth: strokeStyle.lineWidth }]
