@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { Key, KeyboardEvent, useEffect, useRef, useState } from 'react'
 
 interface Rectangle {
     type: 'rectangle';
     points: { x: number, y: number };
     width: number;
     height: number;
-    strokeWidth: number
+    lineWidth: number
     color: string
 }
 
@@ -40,6 +40,54 @@ export default function Dashboard() {
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
+    const [redoShapes, setRedoShapes] = useState<shapes[] | null>(null)
+    let undoIndex = 0
+
+    const handleUndo = (e: any) => {
+        if ((e.ctrlKey || e.metaKey) && e.key == 'z') {
+            const btx = backgroundRef.current?.getContext("2d");
+            btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            const undoShapes = shapes?.slice(0, shapes.length - 1)
+            const deletedShape = shapes?.pop()
+            undoShapes?.map((shape) => {
+                if (shape.type == 'freehand' && btx) {
+                    btx.strokeStyle = 'white'
+                    btx.lineWidth = strokeStyle.lineWidth
+                    btx.lineCap = 'round'
+                    btx.beginPath()
+                    shape.points.map((point) => {
+                        btx.lineTo(point.x, point.y);
+                    })
+                    btx.stroke()
+                    btx.closePath()
+                }
+                if (shape.type == 'circle' && btx) {
+                    btx.strokeStyle = strokeStyle.color;
+                    btx.lineWidth = strokeStyle.lineWidth;
+                    btx.beginPath()
+                    btx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
+                    btx.stroke();
+                    btx.closePath();
+                    btx.closePath()
+                }
+                if (shape.type == 'rectangle' && btx) {
+                    btx.beginPath()
+                    btx.strokeStyle = shape.color;
+                    btx.lineWidth = shape.lineWidth;
+                    btx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
+                    btx.closePath()
+                }
+            })
+            setRedoShapes((prev) => {
+                if (prev) {
+                    return [...prev, deletedShape]
+                }
+                else return [deletedShape]
+            })
+            setShapes(undoShapes)
+            undoIndex = undoIndex++
+        }
+    }
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
@@ -96,15 +144,22 @@ export default function Dashboard() {
                 }
             }
         }
+        if (shapes && shapes?.length > 1) {
+            window.addEventListener("keydown", handleUndo);
+        }
+
         if (strokeEdit || eraserEdit) {
             const stroketimeOut = setTimeout(() => {
                 setStrokeEdit(false)
                 setEraserEdit(false)
             }, 3000);
-            return () => clearInterval(stroketimeOut)
+            return () => {
+                window.removeEventListener("keydown", handleUndo);
+                clearInterval(stroketimeOut)
+            }
         }
 
-    }, [coordinates, tools, strokeEdit, eraserEdit])
+    }, [coordinates, tools, strokeEdit, eraserEdit, shapes])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
@@ -193,10 +248,10 @@ export default function Dashboard() {
             btx.closePath()
             setShapes((prev) => {
                 if (prev != null) {
-                    return [...prev, { type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), strokeWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
+                    return [...prev, { type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
                 }
                 else {
-                    return [{ type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), strokeWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
+                    return [{ type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
                 }
             })
         }
