@@ -40,15 +40,15 @@ export default function Dashboard() {
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
-    const [redoShapes, setRedoShapes] = useState<shapes[] | null>(null)
-    let undoIndex = 0
+    const [redoShapes, setRedoShapes] = useState<shapes[] | undefined>(undefined)
 
     const handleUndo = (e: any) => {
-        if ((e.ctrlKey || e.metaKey) && e.key == 'z') {
+        if ((e.ctrlKey || e.metaKey) && e.key == 'z' && shapes) {
+            console.log("undo")
             const btx = backgroundRef.current?.getContext("2d");
             btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
-            const undoShapes = shapes?.slice(0, shapes.length - 1)
-            const deletedShape = shapes?.pop()
+            const undoShapes = shapes.slice(0, -1)
+            const deletedShape = shapes[shapes?.length-1]
             undoShapes?.map((shape) => {
                 if (shape.type == 'freehand' && btx) {
                     btx.strokeStyle = 'white'
@@ -79,13 +79,54 @@ export default function Dashboard() {
                 }
             })
             setRedoShapes((prev) => {
-                if (prev) {
+                if (prev && deletedShape) {
                     return [...prev, deletedShape]
                 }
-                else return [deletedShape]
+                if (deletedShape) {
+                    return [deletedShape]
+                }
             })
             setShapes(undoShapes)
-            undoIndex = undoIndex++
+        }
+    }
+
+    const handleRedo = (e: any) => {
+        if ((e.ctrlKey || e.metaKey) && e.key && e.key == 'Z' && redoShapes) {
+            console.log("object")
+            const btx = backgroundRef.current?.getContext("2d");
+            const redoAddedShape = redoShapes[redoShapes.length - 1]
+            if (redoAddedShape) {
+                if (redoAddedShape.type == 'freehand' && btx) {
+                    btx.strokeStyle = 'white'
+                    btx.lineWidth = strokeStyle.lineWidth
+                    btx.lineCap = 'round'
+                    btx.beginPath()
+                    redoAddedShape.points.map((point) => {
+                        btx.lineTo(point.x, point.y);
+                    })
+                    btx.stroke()
+                    btx.closePath()
+                }
+                if (redoAddedShape.type == 'circle' && btx) {
+                    btx.strokeStyle = strokeStyle.color;
+                    btx.lineWidth = strokeStyle.lineWidth;
+                    btx.beginPath()
+                    btx.arc(redoAddedShape.centerX, redoAddedShape.centerY, redoAddedShape.radius, 0, Math.PI * 2)
+                    btx.stroke();
+                    btx.closePath();
+                    btx.closePath()
+                }
+                if (redoAddedShape.type == 'rectangle' && btx) {
+                    btx.beginPath()
+                    btx.strokeStyle = redoAddedShape.color;
+                    btx.lineWidth = redoAddedShape.lineWidth;
+                    btx.strokeRect(redoAddedShape.points.x, redoAddedShape.points.y, redoAddedShape.width, redoAddedShape.height)
+                    btx.closePath()
+                }
+            }
+            // })
+            setRedoShapes((prev) => prev ? prev.slice(0, -1) : []);
+            setShapes((prev) => (prev ? [...prev, redoAddedShape] : [redoAddedShape]));
         }
     }
 
@@ -144,8 +185,11 @@ export default function Dashboard() {
                 }
             }
         }
-        if (shapes && shapes?.length > 1) {
+        if (shapes) {
             window.addEventListener("keydown", handleUndo);
+        }
+        if (redoShapes) {
+            window.addEventListener('keydown', handleRedo)
         }
 
         if (strokeEdit || eraserEdit) {
@@ -155,6 +199,7 @@ export default function Dashboard() {
             }, 3000);
             return () => {
                 window.removeEventListener("keydown", handleUndo);
+                window.removeEventListener("keydown", handleRedo);
                 clearInterval(stroketimeOut)
             }
         }
@@ -213,6 +258,7 @@ export default function Dashboard() {
     };
 
     const handleMouseUp = () => {
+        setRedoShapes([])
         const btx = backgroundRef.current?.getContext("2d");
         const ctx = canvasRef.current?.getContext("2d");
         if (tools == 'pen' && freehandPoints) {
