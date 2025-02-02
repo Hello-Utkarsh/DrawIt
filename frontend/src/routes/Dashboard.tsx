@@ -41,16 +41,19 @@ export default function Dashboard() {
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
     const [redoShapes, setRedoShapes] = useState<shapes[] | undefined>(undefined)
-    const viewportTransform = {
+    const [viewportTransform, setTransform] = useState({
         x: 0,
         y: 0,
-        scale: 1
-    }
+        backgroundScale: 1,
+    })
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
-        // btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+        btx?.setTransform(1, 0, 0, 1, 0, 0)
+        btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         renderShapes.map((shape) => {
+            console.log(shape)
             if (shape.type == 'freehand' && btx) {
                 btx.strokeStyle = 'white'
                 btx.lineWidth = strokeStyle.lineWidth
@@ -72,6 +75,7 @@ export default function Dashboard() {
                 btx.closePath()
             }
             if (shape.type == 'rectangle' && btx) {
+                console.log(shape)
                 btx.beginPath()
                 btx.strokeStyle = shape.color;
                 btx.lineWidth = shape.lineWidth;
@@ -85,8 +89,9 @@ export default function Dashboard() {
         if ((e.ctrlKey || e.metaKey) && e.key == 'z' && shapes) {
             console.log("undo")
             const btx = backgroundRef.current?.getContext("2d");
-            btx?.setTransform(viewportTransform.scale, 0, 0, viewportTransform.scale, viewportTransform.x, viewportTransform.y)
+            btx?.setTransform(1, 0, 0, 1, 0, 0)
             btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
             const undoShapes = shapes.slice(0, -1)
             const deletedShape = shapes[shapes?.length - 1]
             undoShapes?.map((shape) => {
@@ -134,7 +139,8 @@ export default function Dashboard() {
         if ((e.ctrlKey || e.metaKey) && e.key && e.key == 'Z' && redoShapes) {
             console.log("object")
             const btx = backgroundRef.current?.getContext("2d");
-            btx?.setTransform(viewportTransform.scale, 0, 0, viewportTransform.scale, viewportTransform.x, viewportTransform.y)
+            btx?.setTransform(1, 0, 0, 1, 0, 0)
+            btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
             const redoAddedShape = redoShapes[redoShapes.length - 1]
             if (redoAddedShape) {
                 if (redoAddedShape.type == 'freehand' && btx) {
@@ -173,8 +179,8 @@ export default function Dashboard() {
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
         const btx = backgroundRef.current?.getContext("2d");
-        btx?.setTransform(viewportTransform.scale, 0, 0, viewportTransform.scale, viewportTransform.x, viewportTransform.y)
-        ctx?.setTransform(viewportTransform.scale, 0, 0, viewportTransform.scale, viewportTransform.x, viewportTransform.y)
+        btx?.setTransform(1, 0, 0, 1, 0, 0)
+        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         if (tools == 'eraser' && btx && coordinates && mouseClicked) {
             btx.globalCompositeOperation = "destination-out";
             btx.lineWidth = eraserStyle;
@@ -188,6 +194,8 @@ export default function Dashboard() {
         }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
             if (tools == 'pen') {
+                // ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
                 ctx.strokeStyle = strokeStyle.color;
@@ -197,11 +205,14 @@ export default function Dashboard() {
                 ctx.beginPath()
                 ctx.moveTo(coordinates.x, coordinates.y)
                 ctx.closePath()
+                return
             }
 
             if (tools == 'circle' && rectStart) {
                 if (ctx && tools == 'circle') {
-                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                    ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                    ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                    ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
                     ctx.strokeStyle = strokeStyle.color;
                     ctx.lineWidth = strokeStyle.lineWidth;
                     const centerX = (rectStart.x + coordinates.x) / 2;
@@ -211,11 +222,14 @@ export default function Dashboard() {
                     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
                     ctx.stroke();
                     ctx.closePath();
+                    return
                 }
             }
             if (tools == 'rectangle' && rectStart) {
                 if (ctx && tools == 'rectangle') {
-                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                    ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                    ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                    ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
                     ctx.strokeStyle = strokeStyle.color;
                     ctx.lineWidth = strokeStyle.lineWidth;
                     const width = coordinates.x - rectStart.x
@@ -246,26 +260,23 @@ export default function Dashboard() {
             window.removeEventListener("keydown", handleRedo);
         }
 
-    }, [coordinates, tools, strokeEdit, eraserEdit, shapes])
+    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
 
         const ctx = canvasRef.current?.getContext("2d");
         if (ctx && (tools == 'rectangle' || tools == 'circle') && canvasRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+            const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
             setRectStart({ x, y })
         }
         if (ctx && canvasRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+            const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
 
             ctx.beginPath();
-            ctx.moveTo(x, y)
             setCoordinates({ x, y });
             if (tools == 'pen') {
                 setFreehand((prev) => {
@@ -282,10 +293,8 @@ export default function Dashboard() {
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (!mouseClicked) return;
 
-        const rect = canvasRef.current!.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
+        const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+        const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
         setCoordinates({ x, y });
         if (tools == 'pen') {
@@ -300,10 +309,11 @@ export default function Dashboard() {
     };
 
     const handleMouseUp = () => {
-        setRedoShapes([])
+        setTransform((prev) => ({ x: prev.x, y: prev.y, backgroundScale: prev.backgroundScale }))
         const btx = backgroundRef.current?.getContext("2d");
-        btx?.setTransform(viewportTransform.scale, 0, 0, viewportTransform.scale, viewportTransform.x, viewportTransform.y)
+        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         const ctx = canvasRef.current?.getContext("2d");
+        ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         if (tools == 'pen' && freehandPoints) {
             if (btx) {
                 btx.strokeStyle = 'white'
@@ -316,6 +326,7 @@ export default function Dashboard() {
                 btx.stroke()
                 btx.closePath()
             }
+            ctx?.setTransform(1, 0, 0, 1, 0, 0)
             ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
             setShapes((prev) => {
                 if (prev != null) {
@@ -327,6 +338,7 @@ export default function Dashboard() {
             setFreehand(null)
         }
         if (tools == 'rectangle' && coordinates && rectStart && btx) {
+            ctx?.setTransform(1, 0, 0, 1, 0, 0)
             ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
             btx.beginPath()
             btx.strokeStyle = strokeStyle.color;
@@ -345,6 +357,7 @@ export default function Dashboard() {
             })
         }
         if (tools == 'circle' && rectStart && coordinates && btx) {
+            ctx?.setTransform(1, 0, 0, 1, 0, 0)
             ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
             btx.strokeStyle = strokeStyle.color;
             btx.lineWidth = strokeStyle.lineWidth;
@@ -376,15 +389,15 @@ export default function Dashboard() {
 
             const localX = e.clientX;
             const localY = e.clientY;
-            const previousScale = viewportTransform.scale;
+            const previousScale = viewportTransform.backgroundScale;
 
-            const newScale = viewportTransform.scale += e.deltaY * -0.001;
+            const newScale = viewportTransform.backgroundScale += e.deltaY * -0.001;
 
             const newX = localX - (localX - oldX) * (newScale / previousScale);
             const newY = localY - (localY - oldY) * (newScale / previousScale);
             viewportTransform.x = newX;
             viewportTransform.y = newY;
-            viewportTransform.scale = newScale;
+            viewportTransform.backgroundScale = newScale;
             reRender(shapes)
         }
     }
@@ -449,6 +462,10 @@ export default function Dashboard() {
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'mouse'} onClick={() => setTools('mouse')} src="/pointer.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
+                    <div></div>
+                </span>
+                <span className='relative'>
+                    <img aria-selected={tools == 'hand'} onClick={() => setTools('hand')} src="/hand.png" className='w-8 h-7 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer mx-auto px-[6px]' alt="" />
                     <div></div>
                 </span>
                 <span className='relative'>
