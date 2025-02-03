@@ -46,6 +46,7 @@ export default function Dashboard() {
         y: 0,
         backgroundScale: 1,
     })
+    const dragStartRef = useRef({ x: 0, y: 0 });
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -53,7 +54,6 @@ export default function Dashboard() {
         btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         renderShapes.map((shape) => {
-            console.log(shape)
             if (shape.type == 'freehand' && btx) {
                 btx.strokeStyle = 'white'
                 btx.lineWidth = strokeStyle.lineWidth
@@ -137,7 +137,6 @@ export default function Dashboard() {
 
     const handleRedo = (e: any) => {
         if ((e.ctrlKey || e.metaKey) && e.key && e.key == 'Z' && redoShapes) {
-            console.log("object")
             const btx = backgroundRef.current?.getContext("2d");
             btx?.setTransform(1, 0, 0, 1, 0, 0)
             btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
@@ -194,7 +193,6 @@ export default function Dashboard() {
         }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
             if (tools == 'pen') {
-                // ctx?.setTransform(1, 0, 0, 1, 0, 0)
                 ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
@@ -265,13 +263,25 @@ export default function Dashboard() {
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
 
+        if (tools === "hand") {
+            dragStartRef.current = {
+                x: e.clientX,
+                y: e.clientY
+            };
+        }
+
         const ctx = canvasRef.current?.getContext("2d");
+        if (tools == 'mouse') {
+            const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+            const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
+            console.log(x, y)
+        }
         if (ctx && (tools == 'rectangle' || tools == 'circle') && canvasRef.current) {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
             setRectStart({ x, y })
         }
-        if (ctx && canvasRef.current) {
+        if (ctx && canvasRef.current && tools != 'mouse') {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
@@ -296,6 +306,24 @@ export default function Dashboard() {
         const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
+        if (tools === "hand" && shapes) {
+            const dx = (e.clientX - dragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
+            const dy = (e.clientY - dragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
+    
+            setTransform((prev) => ({
+                x: prev.x + dx,
+                y: prev.y + dy,
+                backgroundScale: prev.backgroundScale,
+            }));
+    
+            dragStartRef.current = {
+                x: e.clientX,
+                y: e.clientY
+            };
+    
+            reRender(shapes);
+        }
+
         setCoordinates({ x, y });
         if (tools == 'pen') {
             setFreehand((prev) => {
@@ -309,7 +337,7 @@ export default function Dashboard() {
     };
 
     const handleMouseUp = () => {
-        setTransform((prev) => ({ x: prev.x, y: prev.y, backgroundScale: prev.backgroundScale }))
+        console.log(viewportTransform)
         const btx = backgroundRef.current?.getContext("2d");
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         const ctx = canvasRef.current?.getContext("2d");
@@ -382,6 +410,19 @@ export default function Dashboard() {
         setCoordinates(null);
     };
 
+    const cursorType = () => {
+        if (tools == 'rectangle' || tools == 'circle') {
+            return "crosshair"
+        }
+        if (tools == 'hand') {
+            if (mouseClicked) {
+                return 'grabbing'
+            }
+            return 'grab'
+        }
+        else return "default"
+    }
+
     const handleZoom = (e: any) => {
         if (backgroundRef.current && canvasRef.current && shapes) {
             const oldX = viewportTransform.x;
@@ -391,13 +432,11 @@ export default function Dashboard() {
             const localY = e.clientY;
             const previousScale = viewportTransform.backgroundScale;
 
-            const newScale = viewportTransform.backgroundScale += e.deltaY * -0.001;
+            const newScale = viewportTransform.backgroundScale += e.deltaY * 0.001;
 
             const newX = localX - (localX - oldX) * (newScale / previousScale);
             const newY = localY - (localY - oldY) * (newScale / previousScale);
-            viewportTransform.x = newX;
-            viewportTransform.y = newY;
-            viewportTransform.backgroundScale = newScale;
+            setTransform({ x: newX, y: newY, backgroundScale: newScale })
             reRender(shapes)
         }
     }
@@ -413,7 +452,7 @@ export default function Dashboard() {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onWheel={handleZoom}
-                style={(tools == 'rectangle' || tools == 'circle') ? { cursor: 'crosshair' } : undefined}
+                style={{ cursor: (cursorType()) }}
             />
             <canvas
                 ref={backgroundRef}
