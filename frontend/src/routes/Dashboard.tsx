@@ -47,6 +47,8 @@ export default function Dashboard() {
         backgroundScale: 1,
     })
     const dragStartRef = useRef({ x: 0, y: 0 });
+    const [erasedPoints, setErasedPoints] = useState<{ x: number, y: number }[] | null>(null)
+    // const [savedCanvas, setSavedCanvas] = useState<ImageData | null>(null)
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -81,6 +83,19 @@ export default function Dashboard() {
                 btx.lineWidth = shape.lineWidth;
                 btx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
                 btx.closePath()
+            }
+        })
+        erasedPoints?.map((point) => {
+            if (btx) {
+                btx.globalCompositeOperation = "destination-out";
+                btx.lineWidth = eraserStyle;
+                btx.lineCap = "round";
+                btx.strokeStyle = 'white'
+                btx.beginPath()
+                btx.lineTo(point.x, point.y);
+                btx.stroke();
+                btx.closePath()
+                btx.globalCompositeOperation = "source-over";
             }
         })
     }
@@ -190,6 +205,12 @@ export default function Dashboard() {
             btx.stroke();
             btx.closePath()
             btx.globalCompositeOperation = "source-over";
+            setErasedPoints((prev) => {
+                if (prev) {
+                    return [...prev, { x: coordinates.x, y: coordinates.y }]
+                }
+                else return [{ x: coordinates.x, y: coordinates.y }]
+            })
         }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
             if (tools == 'pen') {
@@ -263,6 +284,7 @@ export default function Dashboard() {
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
 
+        // pan logic
         if (tools === "hand") {
             dragStartRef.current = {
                 x: e.clientX,
@@ -306,21 +328,22 @@ export default function Dashboard() {
         const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
+        // pan logic
         if (tools === "hand" && shapes) {
             const dx = (e.clientX - dragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
             const dy = (e.clientY - dragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
-    
+
             setTransform((prev) => ({
                 x: prev.x + dx,
                 y: prev.y + dy,
                 backgroundScale: prev.backgroundScale,
             }));
-    
+
             dragStartRef.current = {
                 x: e.clientX,
                 y: e.clientY
             };
-    
+
             reRender(shapes);
         }
 
@@ -337,10 +360,10 @@ export default function Dashboard() {
     };
 
     const handleMouseUp = () => {
-        console.log(viewportTransform)
+        setRedoShapes([])
         const btx = backgroundRef.current?.getContext("2d");
-        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         const ctx = canvasRef.current?.getContext("2d");
+        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         if (tools == 'pen' && freehandPoints) {
             if (btx) {
