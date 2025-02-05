@@ -47,10 +47,13 @@ export default function Dashboard() {
         backgroundScale: 1,
     })
     const dragStartRef = useRef({ x: 0, y: 0 });
+    const shapedragStartRef = useRef({ x: 0, y: 0 });
     const [erasedPoints, setErasedPoints] = useState<{ x: number, y: number }[] | null>(null)
     // const [savedCanvas, setSavedCanvas] = useState<ImageData | null>(null)
+    const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
 
     const reRender = (renderShapes: shapes[]) => {
+        console.log(renderShapes)
         const btx = backgroundRef.current?.getContext("2d");
         btx?.setTransform(1, 0, 0, 1, 0, 0)
         btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
@@ -284,9 +287,31 @@ export default function Dashboard() {
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
 
+        if (tools == 'mouse') {
+            shapes?.map((shape, index) => {
+                if (shape.type == 'rectangle') {
+                    const minX = shape.points.x
+                    const minY = shape.points.y
+                    const maxX = shape.points.x + shape.width
+                    const maxY = shape.points.y + shape.height
+                    if ((e.clientX == minX && e.clientY == minY) || (e.clientX == maxX && e.clientY == maxY) || (e.clientX < maxX && e.clientX > minX && e.clientY < maxY && e.clientX > minY)) {
+                        setSelectShape({ index, type: shape.type })
+                        // console.log('selected', index)
+                        return
+                    }
+                }
+            })
+        }
+
         // pan logic
         if (tools === "hand") {
             dragStartRef.current = {
+                x: e.clientX,
+                y: e.clientY
+            };
+        }
+        if (tools == 'mouse') {
+            shapedragStartRef.current = {
                 x: e.clientX,
                 y: e.clientY
             };
@@ -296,7 +321,6 @@ export default function Dashboard() {
         if (tools == 'mouse') {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
-            console.log(x, y)
         }
         if (ctx && (tools == 'rectangle' || tools == 'circle') && canvasRef.current) {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
@@ -327,6 +351,26 @@ export default function Dashboard() {
 
         const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
+
+        if (tools == 'mouse' && selectedShape && shapes) {
+            const dx = (e.clientX - shapedragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
+            const dy = (e.clientY - shapedragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
+
+            console.log(shapes)
+            setShapes((prev) => prev?.map((shape, index) => {
+                if (index == selectedShape.index && shape.type == 'rectangle') {
+                    console.log("object");
+                    return { ...shape, points: { x: shape.points.x + dx, y: shape.points.y + dy } };
+                }
+                else return shape;
+            }))
+            shapedragStartRef.current = {
+                x: e.clientX,
+                y: e.clientY
+            };
+            reRender(shapes);
+            return
+        }
 
         // pan logic
         if (tools === "hand" && shapes) {
