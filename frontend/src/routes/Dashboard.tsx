@@ -9,6 +9,14 @@ interface Rectangle {
     color: string
 }
 
+interface Line {
+    type: 'line'
+    start: { x: number, y: number }
+    end: { x: number, y: number }
+    lineWidth: number
+    color: string
+}
+
 interface Circle {
     type: 'circle'
     centerX: number
@@ -25,7 +33,7 @@ interface Freehand {
     lineWidth: number
 }
 
-type shapes = Rectangle | Freehand | Circle;
+type shapes = Rectangle | Freehand | Circle | Line;
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
@@ -53,14 +61,13 @@ export default function Dashboard() {
     const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
 
     const reRender = (renderShapes: shapes[]) => {
-        console.log(renderShapes)
         const btx = backgroundRef.current?.getContext("2d");
         btx?.setTransform(1, 0, 0, 1, 0, 0)
         btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         renderShapes.map((shape) => {
             if (shape.type == 'freehand' && btx) {
-                btx.strokeStyle = 'white'
+                btx.strokeStyle = strokeStyle.color
                 btx.lineWidth = strokeStyle.lineWidth
                 btx.lineCap = 'round'
                 btx.beginPath()
@@ -80,12 +87,23 @@ export default function Dashboard() {
                 btx.closePath()
             }
             if (shape.type == 'rectangle' && btx) {
-                console.log(shape)
                 btx.beginPath()
                 btx.strokeStyle = shape.color;
                 btx.lineWidth = shape.lineWidth;
                 btx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
                 btx.closePath()
+            }
+            if (shape.type == 'line' && btx) {
+                btx.lineWidth = strokeStyle.lineWidth;
+                btx.lineCap = "round";
+                btx.strokeStyle = strokeStyle.color;
+
+                btx.beginPath()
+                btx.lineTo(shape.start.x, shape.start.y);
+                btx.lineTo(shape.end.x, shape.end.y)
+                btx.stroke()
+                btx.closePath()
+                return
             }
         })
         erasedPoints?.map((point) => {
@@ -216,6 +234,22 @@ export default function Dashboard() {
             })
         }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
+            if (tools == 'line' && rectStart) {
+                ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+                ctx.lineWidth = strokeStyle.lineWidth;
+                ctx.lineCap = "round";
+                ctx.strokeStyle = strokeStyle.color;
+
+
+                ctx.beginPath()
+                ctx.lineTo(rectStart.x, rectStart.y);
+                ctx.lineTo(coordinates.x, coordinates.y)
+                ctx.stroke()
+                ctx.closePath()
+                return
+            }
             if (tools == 'pen') {
                 ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
                 ctx.lineWidth = strokeStyle.lineWidth;
@@ -286,7 +320,9 @@ export default function Dashboard() {
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
+        setSelectShape(null)
 
+        // object moving logic
         if (tools == 'mouse') {
             shapes?.map((shape, index) => {
                 if (shape.type == 'rectangle') {
@@ -294,9 +330,44 @@ export default function Dashboard() {
                     const minY = shape.points.y
                     const maxX = shape.points.x + shape.width
                     const maxY = shape.points.y + shape.height
-                    if ((e.clientX == minX && e.clientY == minY) || (e.clientX == maxX && e.clientY == maxY) || (e.clientX < maxX && e.clientX > minX && e.clientY < maxY && e.clientX > minY)) {
+                    if (e.clientX <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientY >= minY) {
                         setSelectShape({ index, type: shape.type })
-                        // console.log('selected', index)
+                        return
+                    }
+                }
+                if (shape.type == 'circle') {
+                    const minX = shape.centerX - shape.radius
+                    const maxX = shape.centerX + shape.radius
+                    const minY = shape.centerY - shape.radius
+                    const maxY = shape.centerY + shape.radius
+                    if (e.clientX <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientX >= minY) {
+                        setSelectShape({ index, type: shape.type })
+                        return
+                    }
+                }
+                if (shape.type == 'freehand') {
+                    shape.points.map((point) => {
+                        const canvasX = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+                        const canvasY = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
+                        if ((canvasX >= point.x - 20 && canvasX <= point.x + 20) && (canvasY >= point.y - 20 && canvasY <= point.y + 20)) {
+                            setSelectShape({ index, type: shape.type })
+                            return
+                        }
+                    })
+                }
+                if (shape.type == 'line') {
+                    const point = []
+                    for (let index = 0; index < 50; index++) {
+                        const t = index / 50
+                        const x = shape.start.x + t * (shape.end.x - shape.start.x)
+                        const y = shape.start.y + t * (shape.end.y - shape.start.y)
+                        point.push({ x, y })
+                    }
+                    if (point.some(p =>
+                        Math.abs(p.x - e.clientX) < 20 &&
+                        Math.abs(p.y - e.clientY) < 20
+                    )) {
+                        setSelectShape({ index, type: shape.type })
                         return
                     }
                 }
@@ -318,11 +389,7 @@ export default function Dashboard() {
         }
 
         const ctx = canvasRef.current?.getContext("2d");
-        if (tools == 'mouse') {
-            const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
-            const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
-        }
-        if (ctx && (tools == 'rectangle' || tools == 'circle') && canvasRef.current) {
+        if (ctx && (tools == 'rectangle' || tools == 'circle' || tools == 'line') && canvasRef.current) {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
             setRectStart({ x, y })
@@ -352,15 +419,27 @@ export default function Dashboard() {
         const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
+        // object moving logic
         if (tools == 'mouse' && selectedShape && shapes) {
             const dx = (e.clientX - shapedragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
             const dy = (e.clientY - shapedragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
 
-            console.log(shapes)
             setShapes((prev) => prev?.map((shape, index) => {
                 if (index == selectedShape.index && shape.type == 'rectangle') {
-                    console.log("object");
                     return { ...shape, points: { x: shape.points.x + dx, y: shape.points.y + dy } };
+                }
+                if (index == selectedShape.index && shape.type == 'circle') {
+                    return { ...shape, centerX: shape.centerX + dx, centerY: shape.centerY + dy }
+                }
+                if (index == selectedShape.index && shape.type == 'freehand') {
+                    const newPoints = shape.points.map(element => {
+                        return { x: element.x + dx, y: element.y + dy }
+                    });
+                    return { ...shape, points: newPoints }
+                }
+                if (index == selectedShape.index && shape.type == 'line') {
+                    console.log(dx, dy)
+                    return { ...shape, start: { x: shape.start.x + dx, y: shape.start.y + dy }, end: { x: shape.end.x + dx, y: shape.end.y + dy } }
                 }
                 else return shape;
             }))
@@ -409,6 +488,26 @@ export default function Dashboard() {
         const ctx = canvasRef.current?.getContext("2d");
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+        if (tools == 'line') {
+            if (btx && rectStart && coordinates) {
+                btx.strokeStyle = strokeStyle.color
+                btx.lineWidth = strokeStyle.lineWidth
+                btx.lineCap = 'round'
+                btx.beginPath()
+                btx.lineTo(rectStart?.x, rectStart?.y)
+                btx.lineTo(coordinates?.x, coordinates?.y)
+                btx.stroke()
+                btx.closePath()
+                ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                setShapes((prev) => {
+                    if (prev != null) {
+                        return [...prev, { type: 'line', color: strokeStyle.color, lineWidth: strokeStyle.lineWidth, start: { x: rectStart.x, y: rectStart.y }, end: { x: coordinates.x, y: coordinates.y } }]
+                    }
+                    else return [{ type: 'line', color: strokeStyle.color, lineWidth: strokeStyle.lineWidth, start: { x: rectStart.x, y: rectStart.y }, end: { x: coordinates.x, y: coordinates.y } }]
+                })
+            }
+        }
         if (tools == 'pen' && freehandPoints) {
             if (btx) {
                 btx.strokeStyle = 'white'
@@ -499,7 +598,7 @@ export default function Dashboard() {
             const localY = e.clientY;
             const previousScale = viewportTransform.backgroundScale;
 
-            const newScale = viewportTransform.backgroundScale += e.deltaY * 0.001;
+            const newScale = viewportTransform.backgroundScale += e.deltaY * -0.001;
 
             const newX = localX - (localX - oldX) * (newScale / previousScale);
             const newY = localY - (localY - oldY) * (newScale / previousScale);
@@ -530,7 +629,7 @@ export default function Dashboard() {
                 <span className='relative'>
                     <img aria-selected={tools == 'pen'} onClick={() => setTools('pen')} src="/pen.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
                     <div className='fixed left-10 top-10 text-white text-sm font-normal flex flex-col'>
-                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
                             <p>Color</p>
                             <span className='flex gap-2'>
                                 <div aria-selected={strokeStyle.color == '#fff'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#fff' }))} className="bg-white h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
@@ -540,7 +639,7 @@ export default function Dashboard() {
                                 <div aria-selected={strokeStyle.color == '#4ade80'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#4ade80' }))} className="bg-green-400 h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
                             </span>
                         </span>
-                        <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle' || tools == 'circle'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
                             <p>Stroke Width</p>
                             <span className='flex gap-2 items-center'>
                                 <input min={1} max={20} defaultValue={strokeEdit ? strokeStyle.lineWidth : eraserStyle} onChange={(e) => {
@@ -564,15 +663,17 @@ export default function Dashboard() {
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'eraser'} onClick={() => setTools('eraser')} src="/eraser.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
-                    <div></div>
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'mouse'} onClick={() => setTools('mouse')} src="/pointer.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
-                    <div></div>
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'hand'} onClick={() => setTools('hand')} src="/hand.png" className='w-8 h-7 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer mx-auto px-[6px]' alt="" />
-                    <div></div>
+                </span>
+                <span className='relative'>
+                    <div aria-selected={tools == 'line'} onClick={() => setTools('line')} className='aria-selected:bg-zinc-600 cursor-pointer py-[10px] my-[6px] rounded-md'>
+                        <div className='w-5 h-[2px] mx-auto bg-[#e3e3e8]' />
+                    </div>
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'rectangle'} onClick={() => setTools('rectangle')} src="/rectangle.png" className='w-8 h-8 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
