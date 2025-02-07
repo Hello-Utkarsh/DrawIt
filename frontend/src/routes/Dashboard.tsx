@@ -33,7 +33,15 @@ interface Freehand {
     lineWidth: number
 }
 
-type shapes = Rectangle | Freehand | Circle | Line;
+interface Arrow {
+    type: 'arrow'
+    start: { x: number, y: number }
+    end: { x: number, y: number }
+    color: string
+    lineWidth: number
+}
+
+type shapes = Rectangle | Freehand | Circle | Line | Arrow;
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
@@ -178,33 +186,7 @@ export default function Dashboard() {
             btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
             const redoAddedShape = redoShapes[redoShapes.length - 1]
             if (redoAddedShape) {
-                if (redoAddedShape.type == 'freehand' && btx) {
-                    btx.strokeStyle = 'white'
-                    btx.lineWidth = strokeStyle.lineWidth
-                    btx.lineCap = 'round'
-                    btx.beginPath()
-                    redoAddedShape.points.map((point) => {
-                        btx.lineTo(point.x, point.y);
-                    })
-                    btx.stroke()
-                    btx.closePath()
-                }
-                if (redoAddedShape.type == 'circle' && btx) {
-                    btx.strokeStyle = strokeStyle.color;
-                    btx.lineWidth = strokeStyle.lineWidth;
-                    btx.beginPath()
-                    btx.arc(redoAddedShape.centerX, redoAddedShape.centerY, redoAddedShape.radius, 0, Math.PI * 2)
-                    btx.stroke();
-                    btx.closePath();
-                    btx.closePath()
-                }
-                if (redoAddedShape.type == 'rectangle' && btx) {
-                    btx.beginPath()
-                    btx.strokeStyle = redoAddedShape.color;
-                    btx.lineWidth = redoAddedShape.lineWidth;
-                    btx.strokeRect(redoAddedShape.points.x, redoAddedShape.points.y, redoAddedShape.width, redoAddedShape.height)
-                    btx.closePath()
-                }
+                reRender([redoAddedShape])
             }
             setRedoShapes((prev) => prev ? prev.slice(0, -1) : []);
             setShapes((prev) => (prev ? [...prev, redoAddedShape] : [redoAddedShape]));
@@ -216,6 +198,7 @@ export default function Dashboard() {
         const btx = backgroundRef.current?.getContext("2d");
         btx?.setTransform(1, 0, 0, 1, 0, 0)
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+
         if (tools == 'eraser' && btx && coordinates && mouseClicked) {
             btx.globalCompositeOperation = "destination-out";
             btx.lineWidth = eraserStyle;
@@ -241,7 +224,6 @@ export default function Dashboard() {
                 ctx.lineWidth = strokeStyle.lineWidth;
                 ctx.lineCap = "round";
                 ctx.strokeStyle = strokeStyle.color;
-
 
                 ctx.beginPath()
                 ctx.lineTo(rectStart.x, rectStart.y);
@@ -296,6 +278,31 @@ export default function Dashboard() {
                     return
                 }
             }
+            if (tools == 'arrow' && rectStart) {
+                ctx?.setTransform(1, 0, 0, 1, 0, 0)
+                ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+                ctx.strokeStyle = strokeStyle.color;
+                ctx.lineWidth = strokeStyle.lineWidth;
+                const arrowLength = 30
+                const angle = Math.atan2(coordinates.y - rectStart.y, coordinates.x - rectStart.x);
+
+                ctx.beginPath();
+                ctx.moveTo(rectStart.x, rectStart.y);
+                ctx.lineTo(coordinates.x, coordinates.y);
+
+                const arrowAngle = Math.PI / 6;
+                const x1 = coordinates.x - arrowLength * Math.cos(angle - arrowAngle);
+                const y1 = coordinates.y - arrowLength * Math.sin(angle - arrowAngle);
+                const x2 = coordinates.x - arrowLength * Math.cos(angle + arrowAngle);
+                const y2 = coordinates.y - arrowLength * Math.sin(angle + arrowAngle);
+
+                ctx.lineTo(x1, y1);
+                ctx.moveTo(coordinates.x, coordinates.y);
+                ctx.lineTo(x2, y2);
+                ctx.stroke()
+                ctx.closePath()
+            }
         }
         if (shapes) {
             window.addEventListener("keydown", handleUndo);
@@ -340,16 +347,16 @@ export default function Dashboard() {
                     const maxX = shape.centerX + shape.radius
                     const minY = shape.centerY - shape.radius
                     const maxY = shape.centerY + shape.radius
-                    if (e.clientX <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientX >= minY) {
+                    if ((e.clientX - viewportTransform.x) / viewportTransform.backgroundScale <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientX >= minY) {
                         setSelectShape({ index, type: shape.type })
                         return
                     }
                 }
                 if (shape.type == 'freehand') {
                     shape.points.map((point) => {
-                        const canvasX = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
-                        const canvasY = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
-                        if ((canvasX >= point.x - 20 && canvasX <= point.x + 20) && (canvasY >= point.y - 20 && canvasY <= point.y + 20)) {
+                        const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+                        const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
+                        if ((x >= point.x - 20 && x <= point.x + 20) && (y >= point.y - 20 && y <= point.y + 20)) {
                             setSelectShape({ index, type: shape.type })
                             return
                         }
@@ -364,8 +371,8 @@ export default function Dashboard() {
                         point.push({ x, y })
                     }
                     if (point.some(p =>
-                        Math.abs(p.x - e.clientX) < 20 &&
-                        Math.abs(p.y - e.clientY) < 20
+                        Math.abs(p.x - (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale) < 20 &&
+                        Math.abs(p.y - (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale) < 20
                     )) {
                         setSelectShape({ index, type: shape.type })
                         return
@@ -389,7 +396,7 @@ export default function Dashboard() {
         }
 
         const ctx = canvasRef.current?.getContext("2d");
-        if (ctx && (tools == 'rectangle' || tools == 'circle' || tools == 'line') && canvasRef.current) {
+        if (ctx && (tools == 'rectangle' || tools == 'circle' || tools == 'line' || tools == 'arrow') && canvasRef.current) {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
             setRectStart({ x, y })
@@ -488,6 +495,37 @@ export default function Dashboard() {
         const ctx = canvasRef.current?.getContext("2d");
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+        if (tools == 'arrow' && rectStart && coordinates && btx) {
+            ctx?.setTransform(1, 0, 0, 1, 0, 0)
+            ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+            btx.strokeStyle = strokeStyle.color;
+            btx.lineWidth = strokeStyle.lineWidth;
+            const arrowLength = 30;
+            const angle = Math.atan2(coordinates.y - rectStart.y, coordinates.x - rectStart.x);
+
+            btx.beginPath();
+            btx.moveTo(rectStart.x, rectStart.y);
+            btx.lineTo(coordinates.x, coordinates.y);
+
+            const arrowAngle = Math.PI / 6;
+            const x1 = coordinates.x - arrowLength * Math.cos(angle - arrowAngle);
+            const y1 = coordinates.y - arrowLength * Math.sin(angle - arrowAngle);
+            const x2 = coordinates.x - arrowLength * Math.cos(angle + arrowAngle);
+            const y2 = coordinates.y - arrowLength * Math.sin(angle + arrowAngle);
+
+            btx.lineTo(x1, y1);
+            btx.moveTo(coordinates.x, coordinates.y);
+            btx.lineTo(x2, y2);
+            btx.stroke()
+            btx.closePath()
+            setShapes((prev) => {
+                if (prev != null) {
+                    return [...prev, { type: 'arrow', color: strokeStyle.color, lineWidth: strokeStyle.lineWidth, start: { x: rectStart.x, y: rectStart.y }, end: { x: coordinates.x, y: coordinates.y } }]
+                }
+                else return [{ type: 'arrow', color: strokeStyle.color, lineWidth: strokeStyle.lineWidth, start: { x: rectStart.x, y: rectStart.y }, end: { x: coordinates.x, y: coordinates.y } }]
+            })
+        }
         if (tools == 'line') {
             if (btx && rectStart && coordinates) {
                 btx.strokeStyle = strokeStyle.color
@@ -577,7 +615,7 @@ export default function Dashboard() {
     };
 
     const cursorType = () => {
-        if (tools == 'rectangle' || tools == 'circle') {
+        if (tools == 'rectangle' || tools == 'circle' || tools == 'arrow') {
             return "crosshair"
         }
         if (tools == 'hand') {
@@ -674,6 +712,9 @@ export default function Dashboard() {
                     <div aria-selected={tools == 'line'} onClick={() => setTools('line')} className='aria-selected:bg-zinc-600 cursor-pointer py-[10px] my-[6px] rounded-md'>
                         <div className='w-5 h-[2px] mx-auto bg-[#e3e3e8]' />
                     </div>
+                </span>
+                <span className='relative'>
+                    <img aria-selected={tools == 'arrow'} onClick={() => setTools('arrow')} src="/arrow.png" className='w-8 h-8 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
                 </span>
                 <span className='relative'>
                     <img aria-selected={tools == 'rectangle'} onClick={() => setTools('rectangle')} src="/rectangle.png" className='w-8 h-8 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
