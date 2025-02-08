@@ -9,6 +9,14 @@ interface Rectangle {
     color: string
 }
 
+interface Text {
+    type: 'text'
+    content: string
+    start: { x: number, y: number }
+    fontSize: number
+    color: string
+}
+
 interface Line {
     type: 'line'
     start: { x: number, y: number }
@@ -41,13 +49,13 @@ interface Arrow {
     lineWidth: number
 }
 
-type shapes = Rectangle | Freehand | Circle | Line | Arrow;
+type shapes = Rectangle | Freehand | Circle | Line | Arrow | Text;
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
     const [freehandPoints, setFreehand] = useState<{ x: number, y: number }[] | null>(null)
     const [tools, setTools] = useState('mouse')
-    const [strokeStyle, setStrokeStyle] = useState({ color: '#fff', lineWidth: 3 })
+    const [strokeStyle, setStrokeStyle] = useState({ color: '#fff', lineWidth: 3, fontSize: 20 })
     const [eraserStyle, setEraser] = useState(3)
     const [strokeEdit, setStrokeEdit] = useState(false)
     const [eraserEdit, setEraserEdit] = useState(false)
@@ -65,8 +73,8 @@ export default function Dashboard() {
     const dragStartRef = useRef({ x: 0, y: 0 });
     const shapedragStartRef = useRef({ x: 0, y: 0 });
     const [erasedPoints, setErasedPoints] = useState<{ x: number, y: number }[] | null>(null)
-    // const [savedCanvas, setSavedCanvas] = useState<ImageData | null>(null)
     const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
+    const [text, setText] = useState<string>('')
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -75,8 +83,8 @@ export default function Dashboard() {
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         renderShapes.map((shape) => {
             if (shape.type == 'freehand' && btx) {
-                btx.strokeStyle = strokeStyle.color
-                btx.lineWidth = strokeStyle.lineWidth
+                btx.strokeStyle = shape.color
+                btx.lineWidth = shape.lineWidth
                 btx.lineCap = 'round'
                 btx.beginPath()
                 shape.points.map((point) => {
@@ -86,8 +94,8 @@ export default function Dashboard() {
                 btx.closePath()
             }
             if (shape.type == 'circle' && btx) {
-                btx.strokeStyle = strokeStyle.color;
-                btx.lineWidth = strokeStyle.lineWidth;
+                btx.strokeStyle = shape.color;
+                btx.lineWidth = shape.lineWidth;
                 btx.beginPath()
                 btx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
                 btx.stroke();
@@ -102,9 +110,9 @@ export default function Dashboard() {
                 btx.closePath()
             }
             if (shape.type == 'line' && btx) {
-                btx.lineWidth = strokeStyle.lineWidth;
+                btx.lineWidth = shape.lineWidth;
                 btx.lineCap = "round";
-                btx.strokeStyle = strokeStyle.color;
+                btx.strokeStyle = shape.color;
 
                 btx.beginPath()
                 btx.lineTo(shape.start.x, shape.start.y);
@@ -113,18 +121,23 @@ export default function Dashboard() {
                 btx.closePath()
                 return
             }
+            if (shape.type == 'text' && btx) {
+                btx.font = `${shape.fontSize}px Arial`;
+                btx.fillStyle = strokeStyle.color
+                btx.fillText(shape.content, shape.start.x, shape.start.y)
+            }
         })
         erasedPoints?.map((point) => {
             if (btx) {
-                btx.globalCompositeOperation = "destination-out";
+                // btx.globalCompositeOperation = "destination-out";
                 btx.lineWidth = eraserStyle;
                 btx.lineCap = "round";
-                btx.strokeStyle = 'white'
+                btx.strokeStyle = 'black'
                 btx.beginPath()
                 btx.lineTo(point.x, point.y);
                 btx.stroke();
                 btx.closePath()
-                btx.globalCompositeOperation = "source-over";
+                // btx.globalCompositeOperation = "source-over";
             }
         })
     }
@@ -193,12 +206,31 @@ export default function Dashboard() {
         }
     }
 
+    const handleText = (e: any) => {
+        const allowedKeys = /^[a-zA-Z0-9\s.,!?'"():;+-=*/]$/;
+
+        if (allowedKeys.test(e.key)) {
+            setText((prev) => prev + e.key);
+        } else if (e.key === "Backspace") {
+            setText((prev) => prev ? prev.slice(0, -1) : "");
+        } else if (e.key === "Enter") {
+            setText((prev) => prev + "\n");
+        } else if (e.key === " ") {
+            setText((prev) => prev + " ");
+        }
+    }
+
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
         const btx = backgroundRef.current?.getContext("2d");
+        ctx?.setTransform(1, 0, 0, 1, 0, 0)
+        ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+        ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         btx?.setTransform(1, 0, 0, 1, 0, 0)
         btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
-
+        if (tools == 'text') {
+            window.addEventListener('keydown', handleText)
+        }
         if (tools == 'eraser' && btx && coordinates && mouseClicked) {
             btx.globalCompositeOperation = "destination-out";
             btx.lineWidth = eraserStyle;
@@ -304,6 +336,14 @@ export default function Dashboard() {
                 ctx.closePath()
             }
         }
+        if (tools == 'text' && rectStart && ctx) {
+            ctx?.setTransform(1, 0, 0, 1, 0, 0)
+            ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+            ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+            ctx.font = `${strokeStyle.fontSize}px Arial`;
+            ctx.fillStyle = strokeStyle.color
+            ctx.fillText(text ? text + '|' : '|', rectStart.x, rectStart.y)
+        }
         if (shapes) {
             window.addEventListener("keydown", handleUndo);
         }
@@ -321,13 +361,39 @@ export default function Dashboard() {
         return () => {
             window.removeEventListener("keydown", handleUndo);
             window.removeEventListener("keydown", handleRedo);
+            window.removeEventListener("keydown", handleText);
+
         }
 
-    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform])
+    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform, text])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
         setSelectShape(null)
+        const ctx = canvasRef.current?.getContext("2d");
+        const btx = backgroundRef.current?.getContext("2d");
+
+        if (tools == 'text' && ctx) {
+            const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
+            const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
+            if (text.length > 1 && rectStart && btx) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0)
+                ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                btx.font = `${strokeStyle.fontSize}px Arial`;
+                btx.fillStyle = strokeStyle.color
+                btx.fillText(text, rectStart.x, rectStart.y)
+                setShapes((prev) => {
+                    if (prev) {
+                        return [...prev, { type: 'text', start: { x: rectStart.x, y: rectStart.y }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
+                    }
+                    else return [{ type: 'text', start: { x: rectStart.x, y: rectStart.y }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
+                })
+                setTools('mouse')
+                return setText('')
+            }
+            ctx.setTransform(1, 0, 0, 1, 0, 0)
+            setRectStart({ x, y })
+        }
 
         // object moving logic
         if (tools == 'mouse') {
@@ -337,7 +403,7 @@ export default function Dashboard() {
                     const minY = shape.points.y
                     const maxX = shape.points.x + shape.width
                     const maxY = shape.points.y + shape.height
-                    if (e.clientX <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientY >= minY) {
+                    if (e.clientX <= maxX + 10 && e.clientX >= minX - 10 && e.clientY <= maxY + 10 && e.clientY >= minY - 10) {
                         setSelectShape({ index, type: shape.type })
                         return
                     }
@@ -395,7 +461,6 @@ export default function Dashboard() {
             };
         }
 
-        const ctx = canvasRef.current?.getContext("2d");
         if (ctx && (tools == 'rectangle' || tools == 'circle' || tools == 'line' || tools == 'arrow') && canvasRef.current) {
             const x = (e.clientX - viewportTransform.x) / viewportTransform.backgroundScale;
             const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
@@ -548,7 +613,7 @@ export default function Dashboard() {
         }
         if (tools == 'pen' && freehandPoints) {
             if (btx) {
-                btx.strokeStyle = 'white'
+                btx.strokeStyle = strokeStyle.color
                 btx.lineWidth = strokeStyle.lineWidth
                 btx.lineCap = 'round'
                 btx.beginPath()
@@ -615,7 +680,7 @@ export default function Dashboard() {
     };
 
     const cursorType = () => {
-        if (tools == 'rectangle' || tools == 'circle' || tools == 'arrow') {
+        if (tools == 'rectangle' || tools == 'circle' || tools == 'arrow' || tools == 'text') {
             return "crosshair"
         }
         if (tools == 'hand') {
@@ -667,7 +732,7 @@ export default function Dashboard() {
                 <span className='relative'>
                     <img aria-selected={tools == 'pen'} onClick={() => setTools('pen')} src="/pen.png" className='w-8 px-1 py-[6px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer' alt="" />
                     <div className='fixed left-10 top-10 text-white text-sm font-normal flex flex-col'>
-                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle' || tools == 'line' || tools == 'text'} className="flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800">
                             <p>Color</p>
                             <span className='flex gap-2'>
                                 <div aria-selected={strokeStyle.color == '#fff'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#fff' }))} className="bg-white h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
@@ -677,11 +742,20 @@ export default function Dashboard() {
                                 <div aria-selected={strokeStyle.color == '#4ade80'} onClick={() => setStrokeStyle((prev) => ({ ...prev, color: '#4ade80' }))} className="bg-green-400 h-5 w-5 rounded-[4px] outline-1 aria-selected:outline outline-offset-2 outline-white cursor-pointer" />
                             </span>
                         </span>
+                        <span aria-selected={tools == 'text'} className='flex-col gap-2 hidden aria-selected:flex rounded-t-md px-3 py-3 bg-zinc-800'>
+                            <p>Font Size</p>
+                            <span className='flex justify-between items-center'>
+                                <p aria-selected={strokeStyle.fontSize == 15} onClick={() => setStrokeStyle((prev) => ({ ...prev, fontSize: 15 }))} className='text-base cursor-pointer rounded-[4px] w-6 text-center aria-selected:outline outline-2 outline-white'>S</p>
+                                <p aria-selected={strokeStyle.fontSize == 20} onClick={() => setStrokeStyle((prev) => ({ ...prev, fontSize: 20 }))} className='text-base cursor-pointer rounded-[4px] w-6 text-center aria-selected:outline outline-2 outline-white'>M</p>
+                                <p aria-selected={strokeStyle.fontSize == 28} onClick={() => setStrokeStyle((prev) => ({ ...prev, fontSize: 28 }))} className='text-base cursor-pointer rounded-[4px] w-6 text-center aria-selected:outline outline-2 outline-white'>L</p>
+                                <p aria-selected={strokeStyle.fontSize == 40} onClick={() => setStrokeStyle((prev) => ({ ...prev, fontSize: 40 }))} className='text-base cursor-pointer rounded-[4px] w-6 text-center aria-selected:outline outline-2 outline-white'>XL</p>
+                            </span>
+                        </span>
                         <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
                             <p>Stroke Width</p>
                             <span className='flex gap-2 items-center'>
                                 <input min={1} max={20} defaultValue={strokeEdit ? strokeStyle.lineWidth : eraserStyle} onChange={(e) => {
-                                    if (tools == 'pen') {
+                                    if (tools == 'pen' || tools == 'rectangle' || tools == 'circle' || tools == 'line') {
                                         setStrokeStyle((prev) => ({ ...prev, lineWidth: Number(e.target.value) }))
                                     }
                                     if (tools == 'eraser') {
@@ -709,7 +783,7 @@ export default function Dashboard() {
                     <img aria-selected={tools == 'hand'} onClick={() => setTools('hand')} src="/hand.png" className='w-8 h-7 py-[2px] my-[6px] rounded-md aria-selected:bg-zinc-600 cursor-pointer mx-auto px-[6px]' alt="" />
                 </span>
                 <span className='relative'>
-                    <div aria-selected={tools == 'line'} onClick={() => setTools('line')} className='aria-selected:bg-zinc-600 cursor-pointer py-[10px] my-[6px] rounded-md'>
+                    <div aria-selected={tools == 'line'} onClick={() => setTools('line')} className='aria-selected:bg-zinc-600 cursor-pointer py-[13px] my-[6px] rounded-md'>
                         <div className='w-5 h-[2px] mx-auto bg-[#e3e3e8]' />
                     </div>
                 </span>
@@ -721,8 +795,13 @@ export default function Dashboard() {
                     <div></div>
                 </span>
                 <span className='relative'>
-                    <div aria-selected={tools == 'circle'} onClick={() => setTools('circle')} className='aria-selected:bg-zinc-600 py-[4px] my-[5px] rounded-md'>
+                    <div aria-selected={tools == 'circle'} onClick={() => setTools('circle')} className='aria-selected:bg-zinc-600 py-[5px] my-[5px] rounded-md'>
                         <div className='w-4 h-4 mx-auto rounded-full cursor-pointer border-2 border-[#e3e3e8]' />
+                    </div>
+                </span>
+                <span className='relative'>
+                    <div aria-selected={tools == 'text'} onClick={() => setTools('text')} className='aria-selected:bg-zinc-600 py-[4px] my-[5px] rounded-md'>
+                        <div className='w-4 h-5 mx-auto cursor-pointer font-semibold font-serif justify-center items-center flex text-xl text-[#e3e3e8]'>T</div>
                     </div>
                 </span>
             </div>
