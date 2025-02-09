@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 
 interface Rectangle {
     type: 'rectangle';
-    points: { x: number, y: number };
+    start: { x: number, y: number };
     width: number;
     height: number;
     lineWidth: number
@@ -13,6 +13,7 @@ interface Text {
     type: 'text'
     content: string
     start: { x: number, y: number }
+    end: { x: number, y: number }
     fontSize: number
     color: string
 }
@@ -106,7 +107,7 @@ export default function Dashboard() {
                 btx.beginPath()
                 btx.strokeStyle = shape.color;
                 btx.lineWidth = shape.lineWidth;
-                btx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
+                btx.strokeRect(shape.start.x, shape.start.y, shape.width, shape.height)
                 btx.closePath()
             }
             if (shape.type == 'line' && btx) {
@@ -176,7 +177,7 @@ export default function Dashboard() {
                     btx.beginPath()
                     btx.strokeStyle = shape.color;
                     btx.lineWidth = shape.lineWidth;
-                    btx.strokeRect(shape.points.x, shape.points.y, shape.width, shape.height)
+                    btx.strokeRect(shape.start.x, shape.start.y, shape.width, shape.height)
                     btx.closePath()
                 }
             })
@@ -223,11 +224,6 @@ export default function Dashboard() {
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
         const btx = backgroundRef.current?.getContext("2d");
-        ctx?.setTransform(1, 0, 0, 1, 0, 0)
-        ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
-        ctx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
-        btx?.setTransform(1, 0, 0, 1, 0, 0)
-        btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
         if (tools == 'text') {
             window.addEventListener('keydown', handleText)
         }
@@ -382,11 +378,17 @@ export default function Dashboard() {
                 btx.font = `${strokeStyle.fontSize}px Arial`;
                 btx.fillStyle = strokeStyle.color
                 btx.fillText(text, rectStart.x, rectStart.y)
+                const metrics = ctx.measureText(text);
+                const textWidth = metrics.width;
+                const textHeight = parseInt(ctx.font, 10);
+
+                const endX = rectStart.x + textWidth;
+                const endY = rectStart.y + textHeight;
                 setShapes((prev) => {
                     if (prev) {
-                        return [...prev, { type: 'text', start: { x: rectStart.x, y: rectStart.y }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
+                        return [...prev, { type: 'text', start: { x: rectStart.x, y: rectStart.y }, end: { x: endX, y: endY }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
                     }
-                    else return [{ type: 'text', start: { x: rectStart.x, y: rectStart.y }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
+                    else return [{ type: 'text', start: { x: rectStart.x, y: rectStart.y }, end: { x: endX, y: endY }, fontSize: strokeStyle.fontSize, color: strokeStyle.color, content: text }]
                 })
                 setTools('mouse')
                 return setText('')
@@ -398,11 +400,18 @@ export default function Dashboard() {
         // object moving logic
         if (tools == 'mouse') {
             shapes?.map((shape, index) => {
+                if (shape.type == 'text') {
+                    console.log("object", e.clientX <= shape.end.x + 10 && e.clientX >= shape.start.x - 10 && e.clientY <= shape.end.y + 10)
+                    if (e.clientX <= shape.end.x + 20 && e.clientX >= shape.start.x - 20 && e.clientY <= shape.end.y + 20 && e.clientY >= shape.start.y - 20) {
+                        setSelectShape({ index, type: shape.type })
+                        return
+                    }
+                }
                 if (shape.type == 'rectangle') {
-                    const minX = shape.points.x
-                    const minY = shape.points.y
-                    const maxX = shape.points.x + shape.width
-                    const maxY = shape.points.y + shape.height
+                    const minX = shape.start.x
+                    const minY = shape.start.y
+                    const maxX = shape.start.x + shape.width
+                    const maxY = shape.start.y + shape.height
                     if (e.clientX <= maxX + 10 && e.clientX >= minX - 10 && e.clientY <= maxY + 10 && e.clientY >= minY - 10) {
                         setSelectShape({ index, type: shape.type })
                         return
@@ -492,13 +501,14 @@ export default function Dashboard() {
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
         // object moving logic
+        console.log(shapes, selectedShape)
         if (tools == 'mouse' && selectedShape && shapes) {
             const dx = (e.clientX - shapedragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
             const dy = (e.clientY - shapedragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
 
             setShapes((prev) => prev?.map((shape, index) => {
                 if (index == selectedShape.index && shape.type == 'rectangle') {
-                    return { ...shape, points: { x: shape.points.x + dx, y: shape.points.y + dy } };
+                    return { ...shape, points: { x: shape.start.x + dx, y: shape.start.y + dy } };
                 }
                 if (index == selectedShape.index && shape.type == 'circle') {
                     return { ...shape, centerX: shape.centerX + dx, centerY: shape.centerY + dy }
@@ -510,8 +520,11 @@ export default function Dashboard() {
                     return { ...shape, points: newPoints }
                 }
                 if (index == selectedShape.index && shape.type == 'line') {
-                    console.log(dx, dy)
                     return { ...shape, start: { x: shape.start.x + dx, y: shape.start.y + dy }, end: { x: shape.end.x + dx, y: shape.end.y + dy } }
+                }
+                if (index == selectedShape.index && shape.type == 'text') {
+                    return { ...shape, start: { x: shape.start.x + dx, y: shape.start.y + dy }, end: { x: shape.end.x + dx, y: shape.end.y + dy } }
+
                 }
                 else return shape;
             }))
@@ -646,10 +659,10 @@ export default function Dashboard() {
             btx.closePath()
             setShapes((prev) => {
                 if (prev != null) {
-                    return [...prev, { type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
+                    return [...prev, { type: 'rectangle', start: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
                 }
                 else {
-                    return [{ type: 'rectangle', points: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
+                    return [{ type: 'rectangle', start: { x: rectStart?.x, y: rectStart?.y }, width: (coordinates.x - rectStart.x), height: (coordinates.y - rectStart.y), lineWidth: strokeStyle.lineWidth, color: strokeStyle.color }]
                 }
             })
         }
