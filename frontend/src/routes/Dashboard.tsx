@@ -65,7 +65,7 @@ export default function Dashboard() {
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
     const [shapes, setShapes] = useState<shapes[]>()
-    const [redoShapes, setRedoShapes] = useState<shapes[] | undefined>(undefined)
+    const [redoShapes, setRedoShapes] = useState<{ shape: shapes, index: number }[] | undefined>(undefined)
     const [viewportTransform, setTransform] = useState({
         x: 0,
         y: 0,
@@ -78,7 +78,6 @@ export default function Dashboard() {
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
-        console.log("here")
         if (btx) {
             btx?.setTransform(1, 0, 0, 1, 0, 0)
             btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
@@ -134,75 +133,60 @@ export default function Dashboard() {
 
     const handleUndo = (e: any) => {
         if ((e.ctrlKey || e.metaKey) && e.key == 'z' && shapes) {
-            console.log("undo")
-            const btx = backgroundRef.current?.getContext("2d");
-            btx?.setTransform(1, 0, 0, 1, 0, 0)
-            btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
-            btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
-            if (redoShapes) {
+            if (redoShapes && redoShapes.length > 0) {
                 const redoAddedShape = redoShapes[redoShapes.length - 1]
-                console.log(redoShapes)
                 setRedoShapes((prev) => prev ? prev.slice(0, -1) : []);
-                const newShape = [...shapes, redoAddedShape]
-                setShapes((prev) => (prev ? [...prev, redoAddedShape] : [redoAddedShape]));
+                const newShape = [
+                    ...shapes.slice(0, redoAddedShape.index),
+                    redoAddedShape.shape,
+                    ...shapes.slice(redoAddedShape.index)
+                ];
+                console.log(newShape, shapes)
+                setShapes((prev) => (prev ? [
+                    ...prev.slice(0, redoAddedShape.index),
+                    redoAddedShape.shape,
+                    ...prev.slice(redoAddedShape.index)
+                ] : [redoAddedShape.shape]));
                 reRender(newShape)
-                console.log("object")
                 return
             }
-            const undoShapes = shapes.slice(0, -1)
-            const deletedShape = shapes[shapes?.length - 1]
-            undoShapes?.map((shape) => {
-                if (shape.type == 'freehand' && btx) {
-                    btx.strokeStyle = 'white'
-                    btx.lineWidth = strokeStyle.lineWidth
-                    btx.lineCap = 'round'
-                    btx.beginPath()
-                    shape.points.map((point) => {
-                        btx.lineTo(point.x, point.y);
-                    })
-                    btx.stroke()
-                    btx.closePath()
-                }
-                if (shape.type == 'circle' && btx) {
-                    btx.strokeStyle = strokeStyle.color;
-                    btx.lineWidth = strokeStyle.lineWidth;
-                    btx.beginPath()
-                    btx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
-                    btx.stroke();
-                    btx.closePath();
-                    btx.closePath()
-                }
-                if (shape.type == 'rectangle' && btx) {
-                    btx.beginPath()
-                    btx.strokeStyle = shape.color;
-                    btx.lineWidth = shape.lineWidth;
-                    btx.strokeRect(shape.start.x, shape.start.y, shape.width, shape.height)
-                    btx.closePath()
-                }
-            })
-            setRedoShapes((prev) => {
-                if (prev && deletedShape) {
-                    return [...prev, deletedShape]
-                }
-                if (deletedShape) {
-                    return [deletedShape]
-                }
-            })
-            setShapes(undoShapes)
-        }
-    }
-
-    const handleRedo = (e: any) => {
-        if ((e.ctrlKey || e.metaKey) && e.key && e.key == 'Z' && redoShapes) {
-            const btx = backgroundRef.current?.getContext("2d");
-            btx?.setTransform(1, 0, 0, 1, 0, 0)
-            btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
-            const redoAddedShape = redoShapes[redoShapes.length - 1]
-            if (redoAddedShape) {
-                reRender([redoAddedShape])
+            if (shapes.length > 0) {
+                const btx = backgroundRef.current?.getContext("2d");
+                btx?.setTransform(1, 0, 0, 1, 0, 0)
+                btx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
+                btx?.setTransform(viewportTransform.backgroundScale, 0, 0, viewportTransform.backgroundScale, viewportTransform.x, viewportTransform.y)
+                const undoShapes = shapes.slice(0, -1)
+                undoShapes?.map((shape) => {
+                    if (shape.type == 'freehand' && btx) {
+                        btx.strokeStyle = 'white'
+                        btx.lineWidth = strokeStyle.lineWidth
+                        btx.lineCap = 'round'
+                        btx.beginPath()
+                        shape.points.map((point) => {
+                            btx.lineTo(point.x, point.y);
+                        })
+                        btx.stroke()
+                        btx.closePath()
+                    }
+                    if (shape.type == 'circle' && btx) {
+                        btx.strokeStyle = strokeStyle.color;
+                        btx.lineWidth = strokeStyle.lineWidth;
+                        btx.beginPath()
+                        btx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2)
+                        btx.stroke();
+                        btx.closePath();
+                        btx.closePath()
+                    }
+                    if (shape.type == 'rectangle' && btx) {
+                        btx.beginPath()
+                        btx.strokeStyle = shape.color;
+                        btx.lineWidth = shape.lineWidth;
+                        btx.strokeRect(shape.start.x, shape.start.y, shape.width, shape.height)
+                        btx.closePath()
+                    }
+                })
+                setShapes(undoShapes)
             }
-            setRedoShapes((prev) => prev ? prev.slice(0, -1) : []);
-            setShapes((prev) => (prev ? [...prev, redoAddedShape] : [redoAddedShape]));
         }
     }
 
@@ -222,7 +206,6 @@ export default function Dashboard() {
 
     useEffect(() => {
         const ctx = canvasRef.current?.getContext("2d");
-        const btx = backgroundRef.current?.getContext("2d");
         if (tools == 'text') {
             window.addEventListener('keydown', handleText)
         }
@@ -325,9 +308,6 @@ export default function Dashboard() {
         if (shapes) {
             window.addEventListener("keydown", handleUndo);
         }
-        if (redoShapes) {
-            window.addEventListener('keydown', handleRedo)
-        }
 
         if (strokeEdit || eraserEdit) {
             const stroketimeOut = setTimeout(() => {
@@ -338,7 +318,6 @@ export default function Dashboard() {
         }
         return () => {
             window.removeEventListener("keydown", handleUndo);
-            window.removeEventListener("keydown", handleRedo);
             window.removeEventListener("keydown", handleText);
 
         }
@@ -482,15 +461,15 @@ export default function Dashboard() {
         const y = (e.clientY - viewportTransform.y) / viewportTransform.backgroundScale;
 
         if (tools == 'eraser' && shapes) {
-            console.log("here")
+            console.log(shapes)
             shapes?.map((shape, index) => {
                 if (shape.type == 'text') {
                     if (e.clientX <= shape.end.x + 20 && e.clientX >= shape.start.x - 20 && e.clientY <= shape.end.y + 20 && e.clientY >= shape.start.y - 20) {
                         setRedoShapes((prev) => {
                             if (prev) {
-                                return [...prev, shapes[index]]
+                                return [...prev, { shape: shapes[index], index }]
                             }
-                            return [shapes[index]]
+                            return [{ shape: shapes[index], index }]
                         })
                         setShapes((prev) => {
                             return prev?.filter((_shape, shapeIndex) => index != shapeIndex)
@@ -506,11 +485,12 @@ export default function Dashboard() {
                     if (e.clientX <= maxX + 10 && e.clientX >= minX - 10 && e.clientY <= maxY + 10 && e.clientY >= minY - 10) {
                         setRedoShapes((prev) => {
                             if (prev) {
-                                return [...prev, shapes[index]]
+                                return [...prev, { shape: shapes[index], index }]
                             }
-                            return [shapes[index]]
+                            return [{ shape: shapes[index], index }]
                         })
                         setShapes((prev) => {
+                            console.log(prev?.filter((_shape, shapeIndex) => index != shapeIndex))
                             return prev?.filter((_shape, shapeIndex) => index != shapeIndex)
                         })
                         return
@@ -524,9 +504,9 @@ export default function Dashboard() {
                     if ((e.clientX - viewportTransform.x) / viewportTransform.backgroundScale <= maxX && e.clientX >= minX && e.clientY <= maxY && e.clientX >= minY) {
                         setRedoShapes((prev) => {
                             if (prev) {
-                                return [...prev, shapes[index]]
+                                return [...prev, { shape: shapes[index], index }]
                             }
-                            return [shapes[index]]
+                            return [{ shape: shapes[index], index }]
                         })
                         setShapes((prev) => {
                             return prev?.filter((_shape, shapeIndex) => index != shapeIndex)
@@ -541,9 +521,9 @@ export default function Dashboard() {
                         if ((x >= point.x - 20 && x <= point.x + 20) && (y >= point.y - 20 && y <= point.y + 20)) {
                             setRedoShapes((prev) => {
                                 if (prev) {
-                                    return [...prev, shapes[index]]
+                                    return [...prev, { shape: shapes[index], index }]
                                 }
-                                return [shapes[index]]
+                                return [{ shape: shapes[index], index }]
                             })
                             setShapes((prev) => {
                                 return prev?.filter((_shape, shapeIndex) => index != shapeIndex)
@@ -566,9 +546,9 @@ export default function Dashboard() {
                     )) {
                         setRedoShapes((prev) => {
                             if (prev) {
-                                return [...prev, shapes[index]]
+                                return [...prev, { shape: shapes[index], index }]
                             }
-                            return [shapes[index]]
+                            return [{ shape: shapes[index], index }]
                         })
                         setShapes((prev) => {
                             return prev?.filter((_shape, shapeIndex) => index != shapeIndex)
@@ -582,12 +562,12 @@ export default function Dashboard() {
 
         // object moving logic
         if (tools == 'mouse' && selectedShape && shapes) {
-            const dx = (e.clientX - shapedragStartRef.current.x) / viewportTransform.backgroundScale * 0.4;
-            const dy = (e.clientY - shapedragStartRef.current.y) / viewportTransform.backgroundScale * 0.4;
+            const dx = (e.clientX - shapedragStartRef.current.x) / viewportTransform.backgroundScale;
+            const dy = (e.clientY - shapedragStartRef.current.y) / viewportTransform.backgroundScale;
 
             setShapes((prev) => prev?.map((shape, index) => {
                 if (index == selectedShape.index && shape.type == 'rectangle') {
-                    return { ...shape, points: { x: shape.start.x + dx, y: shape.start.y + dy } };
+                    return { ...shape, start: { x: shape.start.x + dx, y: shape.start.y + dy } };
                 }
                 if (index == selectedShape.index && shape.type == 'circle') {
                     return { ...shape, centerX: shape.centerX + dx, centerY: shape.centerY + dy }
