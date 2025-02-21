@@ -1,22 +1,24 @@
-import { toNodeHandler } from "better-auth/*";
+import {
+  clerkClient,
+  clerkMiddleware,
+  getAuth,
+  requireAuth,
+} from "@clerk/express";
 import { ConnectToDb } from "./db/index";
 import cors from "cors";
-import { auth } from "./auth";
+import { Request, Response } from "express";
+import shapesApi from "./routes/shape";
 const express = require("express");
 const app = express();
 const port = 3000;
 const dotenv = require("dotenv");
 dotenv.config();
 
-app.all("/api/auth/*", toNodeHandler(auth));
-app.use(
-  cors({
-    origin: process.env.FRONTEND_DOMAIN,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(clerkMiddleware());
+app.use(cors({ origin: process.env.FRONTEND_DOMAIN }));
+
 app.use(express.json());
+app.use("/api/v1/shapes", shapesApi);
 
 app.listen(port, async () => {
   try {

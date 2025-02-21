@@ -1,56 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-
-interface Rectangle {
-    type: 'rectangle';
-    start: { x: number, y: number };
-    width: number;
-    height: number;
-    lineWidth: number
-    color: string
-}
-
-interface Text {
-    type: 'text'
-    content: string
-    start: { x: number, y: number }
-    end: { x: number, y: number }
-    fontSize: number
-    color: string
-}
-
-interface Line {
-    type: 'line'
-    start: { x: number, y: number }
-    end: { x: number, y: number }
-    lineWidth: number
-    color: string
-}
-
-interface Circle {
-    type: 'circle'
-    centerX: number
-    centerY: number
-    radius: number
-    color: string
-    lineWidth: number
-}
-
-interface Freehand {
-    type: 'freehand';
-    points: { x: number, y: number }[];
-    color: string
-    lineWidth: number
-}
-
-interface Arrow {
-    type: 'arrow'
-    start: { x: number, y: number }
-    end: { x: number, y: number }
-    color: string
-    lineWidth: number
-}
-
-type shapes = Rectangle | Freehand | Circle | Line | Arrow | Text;
+import { shapes } from '../types'
+import { RedirectToSignIn, SignedOut, useClerk, useSession } from '@clerk/clerk-react'
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
@@ -75,6 +25,8 @@ export default function Dashboard() {
     const shapedragStartRef = useRef({ x: 0, y: 0 });
     const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
     const [text, setText] = useState<string>('')
+    const { isSignedIn } = useSession()
+    const clerk = useClerk()
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -784,6 +736,8 @@ export default function Dashboard() {
         }
     }
 
+    const saveCanvas = () => { console.log("saving") }
+
     return (
         <div>
             <canvas
@@ -825,7 +779,7 @@ export default function Dashboard() {
                                 <p aria-selected={strokeStyle.fontSize == 40} onClick={() => setStrokeStyle((prev) => ({ ...prev, fontSize: 40 }))} className='text-base cursor-pointer rounded-[4px] w-6 text-center aria-selected:outline outline-2 outline-white'>XL</p>
                             </span>
                         </span>
-                        <span aria-selected={tools == 'pen' || tools == 'eraser' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
+                        <span aria-selected={tools == 'pen' || tools == 'rectangle' || tools == 'circle' || tools == 'line'} className="flex-col gap-2 px-3 py-3 rounded-b-md hidden aria-selected:flex bg-zinc-800">
                             <p>Stroke Width</p>
                             <span className='flex gap-2 items-center'>
                                 <input min={1} max={20} defaultValue={strokeEdit ? strokeStyle.lineWidth : eraserStyle} onChange={(e) => {
@@ -877,6 +831,12 @@ export default function Dashboard() {
                     <div aria-selected={tools == 'text'} onClick={() => setTools('text')} className='aria-selected:bg-zinc-600 py-[4px] my-[5px] rounded-md'>
                         <div className='w-4 h-5 mx-auto cursor-pointer font-semibold font-serif justify-center items-center flex text-xl text-[#e3e3e8]'>T</div>
                     </div>
+                    <SignedOut>
+                        <RedirectToSignIn />
+                    </SignedOut>
+                </span>
+                <span className='relative'>
+                    <img onClick={saveCanvas} src="/save.png" className='w-8 h-7 py-1 mx-auto px-[6px] my-[6px] rounded-md hover:bg-zinc-600 cursor-pointer' alt="" />
                 </span>
             </div>
             {(strokeEdit || eraserEdit) && (
