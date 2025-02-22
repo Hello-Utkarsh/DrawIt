@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { shapes } from '../types'
-import { RedirectToSignIn, SignedOut, useClerk, useSession } from '@clerk/clerk-react'
+import { RedirectToSignIn, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
@@ -25,8 +25,6 @@ export default function Dashboard() {
     const shapedragStartRef = useRef({ x: 0, y: 0 });
     const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
     const [text, setText] = useState<string>('')
-    const { isSignedIn } = useSession()
-    const clerk = useClerk()
 
     const reRender = (renderShapes: shapes[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -831,12 +829,17 @@ export default function Dashboard() {
                     <div aria-selected={tools == 'text'} onClick={() => setTools('text')} className='aria-selected:bg-zinc-600 py-[4px] my-[5px] rounded-md'>
                         <div className='w-4 h-5 mx-auto cursor-pointer font-semibold font-serif justify-center items-center flex text-xl text-[#e3e3e8]'>T</div>
                     </div>
-                    <SignedOut>
-                        <RedirectToSignIn />
-                    </SignedOut>
                 </span>
                 <span className='relative'>
                     <img onClick={saveCanvas} src="/save.png" className='w-8 h-7 py-1 mx-auto px-[6px] my-[6px] rounded-md hover:bg-zinc-600 cursor-pointer' alt="" />
+                </span>
+                <span className="relative py-2 flex justify-center">
+                    <SignedIn>
+                        <UserButton />
+                    </SignedIn>
+                    <SignedOut>
+                        <RedirectToSignIn />
+                    </SignedOut>
                 </span>
             </div>
             {(strokeEdit || eraserEdit) && (

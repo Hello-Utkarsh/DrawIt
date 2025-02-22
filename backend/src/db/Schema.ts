@@ -8,7 +8,8 @@ const shapesTypes = [
   "text",
 ];
 
-export const shapeSchema = new mongoose.Schema({
+const shapeSchema = new mongoose.Schema({
+  _id: String,
   type: { type: String, enum: shapesTypes },
   start: { x: Number, y: Number, _id: false },
   end: { x: Number, y: Number, _id: false },
@@ -23,3 +24,5 @@ export const shapeSchema = new mongoose.Schema({
   color: String,
   fontSize: Number,
 });
+
+export const Shapes = mongoose.model("shapes", shapeSchema);

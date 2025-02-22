@@ -18,7 +18,7 @@ app.use(clerkMiddleware());
 app.use(cors({ origin: process.env.FRONTEND_DOMAIN }));
 
 app.use(express.json());
-app.use("/api/v1/shapes", shapesApi);
+app.use("/api/v1", shapesApi);
 
 app.listen(port, async () => {
   try {
