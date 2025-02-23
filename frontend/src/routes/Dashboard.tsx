@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { shapes } from '../types'
-import { RedirectToSignIn, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
+import { shapesType } from '../types'
+import { RedirectToSignIn, SignedIn, SignedOut, useAuth, UserButton, useUser } from '@clerk/clerk-react'
 
 export default function Dashboard() {
     const backgroundRef = useRef<HTMLCanvasElement | null>(null)
@@ -14,8 +14,8 @@ export default function Dashboard() {
     const [mouseClicked, setMouseClicked] = useState(false);
     const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null)
     const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
-    const [shapes, setShapes] = useState<shapes[]>()
-    const [redoShapes, setRedoShapes] = useState<{ shape: shapes, index: number }[] | undefined>(undefined)
+    const [shapes, setShapes] = useState<shapesType[]>()
+    const [redoShapes, setRedoShapes] = useState<{ shape: shapesType, index: number }[] | undefined>(undefined)
     const [viewportTransform, setTransform] = useState({
         x: 0,
         y: 0,
@@ -25,8 +25,11 @@ export default function Dashboard() {
     const shapedragStartRef = useRef({ x: 0, y: 0 });
     const [selectedShape, setSelectShape] = useState<{ index: number, type: string } | null>(null)
     const [text, setText] = useState<string>('')
+    const { user } = useUser()
+    const [fetchedCanvas, setFetched] = useState(true)
+    const { getToken } = useAuth()
 
-    const reRender = (renderShapes: shapes[]) => {
+    const reRender = (renderShapes: shapesType[]) => {
         const btx = backgroundRef.current?.getContext("2d");
         if (btx) {
             btx?.setTransform(1, 0, 0, 1, 0, 0)
@@ -155,6 +158,9 @@ export default function Dashboard() {
     }
 
     useEffect(() => {
+        if (fetchedCanvas && user) {
+            fetchCanvas()
+        }
         const ctx = canvasRef.current?.getContext("2d");
         if (tools == 'text') {
             window.addEventListener('keydown', handleText)
@@ -272,7 +278,7 @@ export default function Dashboard() {
 
         }
 
-    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform, text])
+    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform, text, user])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
@@ -734,7 +740,50 @@ export default function Dashboard() {
         }
     }
 
-    const saveCanvas = () => { console.log("saving") }
+    const fetchCanvas = async () => {
+        if (user) {
+            try {
+                const req = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/v1/user/${user.id}`, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${await getToken()}`
+                    }
+                })
+                if (req.status == 200) {
+                    const res = await req.json()
+                    setShapes(res.userCanvas.shapes)
+                    reRender(res.userCanvas.shapes)
+                }
+            } catch (error) {
+                console.log(error)
+            }
+        }
+        setFetched(false)
+    }
+
+    const saveCanvas = async () => {
+        if (user && shapes) {
+            try {
+                const req = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/v1/user`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${await getToken()}`
+                    },
+                    body: JSON.stringify({
+                        shapes, userid: user.id
+                    })
+                })
+                if (req.status == 201) {
+                    return console.log("Saved")
+                }
+                const res = await req.json()
+                return console.log(res)
+            } catch (error) {
+                console.log(error)
+            }
+        }
+    }
 
     return (
         <div>

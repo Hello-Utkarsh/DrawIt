@@ -48,4 +48,4 @@ export interface Arrow {
     lineWidth: number
 }
 
-export type shapes = Rectangle | Freehand | Circle | Line | Arrow | Text;
+export type shapesType = Rectangle | Freehand | Circle | Line | Arrow | Text;
