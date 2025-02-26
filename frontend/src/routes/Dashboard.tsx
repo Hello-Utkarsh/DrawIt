@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { shapesType } from '../types'
 import { RedirectToSignIn, SignedIn, SignedOut, useAuth, UserButton, useUser } from '@clerk/clerk-react'
 
@@ -28,6 +28,9 @@ export default function Dashboard() {
     const { user } = useUser()
     const [fetchedCanvas, setFetched] = useState(true)
     const { getToken } = useAuth()
+    const [saving, setSaving] = useState(false)
+    const timeout: any = useRef(null)
+    const [isSaved, setSave] = useState(false)
 
     const reRender = (renderShapes: shapesType[]) => {
         const btx = backgroundRef.current?.getContext("2d");
@@ -272,6 +275,7 @@ export default function Dashboard() {
             }, 3000);
             return () => clearInterval(stroketimeOut)
         }
+        debounce()
         return () => {
             window.removeEventListener("keydown", handleUndo);
             window.removeEventListener("keydown", handleText);
@@ -754,6 +758,7 @@ export default function Dashboard() {
                     setShapes(res.userCanvas.shapes)
                     reRender(res.userCanvas.shapes)
                 }
+                setSave(true)
             } catch (error) {
                 console.log(error)
             }
@@ -761,9 +766,20 @@ export default function Dashboard() {
         setFetched(false)
     }
 
+    const debounce = useCallback(() => {
+        if (timeout.current) {
+            clearTimeout(timeout.current);
+        };
+        console.log("object")
+        timeout.current = setTimeout(() => {
+            saveCanvas();
+        }, 4000);
+    }, []);
+
     const saveCanvas = async () => {
         if (user && shapes) {
             try {
+                setSaving(true)
                 const req = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/v1/user`, {
                     method: 'POST',
                     headers: {
@@ -778,8 +794,12 @@ export default function Dashboard() {
                     return console.log("Saved")
                 }
                 const res = await req.json()
+                setSaving(false)
+                setSave(true)
                 return console.log(res)
             } catch (error) {
+                setSaving(false)
+                setSave(false)
                 console.log(error)
             }
         }
@@ -880,7 +900,7 @@ export default function Dashboard() {
                     </div>
                 </span>
                 <span className='relative'>
-                    <img onClick={saveCanvas} src="/save.png" className='w-8 h-7 py-1 mx-auto px-[6px] my-[6px] rounded-md hover:bg-zinc-600 cursor-pointer' alt="" />
+                    <img onClick={saveCanvas} src="/save.png" className={`w-8 h-7 ${isSaved ? 'bg-green-500' : 'bg-red-500'} ${saving ? 'animate-pulse' : ''} py-1 mx-auto px-[6px] my-[6px] rounded-md cursor-pointe`} alt="" />
                 </span>
                 <span className="relative py-2 flex justify-center">
                     <SignedIn>

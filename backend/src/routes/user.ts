@@ -25,7 +25,6 @@ user.post("/", async (req: Request, res: Response) => {
       { shapes },
       { upsert: true, new: true }
     );
-    console.log(updateCanvas);
     if (updateCanvas) {
       return res.json({ message: "Saved" }).status(201);
     }
