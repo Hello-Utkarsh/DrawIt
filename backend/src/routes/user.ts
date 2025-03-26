@@ -13,6 +13,7 @@ user.get("/:userid", async (req: Request, res: Response) => {
     const userCanvas = await Shapes.findById(userid);
     return res.json({ userCanvas }).status(200);
   } catch (error: any) {
+    console.log(error)
     return res.send(error.message).status(error.status);
   }
 });
@@ -30,6 +31,7 @@ user.post("/", async (req: Request, res: Response) => {
     }
     return res.send("Unable to save").status(200);
   } catch (error: any) {
+    console.log(error)
     return res.send(error.message).status(error.status);
   }
 });

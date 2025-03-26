@@ -169,6 +169,7 @@ export default function Dashboard() {
             window.addEventListener('keydown', handleText)
         }
         if (ctx && mouseClicked && coordinates && canvasRef.current) {
+            setSave(false)
             if (tools == 'line' && rectStart) {
                 ctx?.setTransform(1, 0, 0, 1, 0, 0)
                 ctx?.clearRect(0, 0, window.innerWidth, window.innerHeight)
@@ -282,7 +283,7 @@ export default function Dashboard() {
 
         }
 
-    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform, text, user])
+    }, [coordinates, tools, strokeEdit, eraserEdit, shapes, viewportTransform, text, user, saving])
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
         setMouseClicked(true);
@@ -767,10 +768,10 @@ export default function Dashboard() {
     }
 
     const debounce = useCallback(() => {
+        console.log("object")
         if (timeout.current) {
             clearTimeout(timeout.current);
         };
-        console.log("object")
         timeout.current = setTimeout(() => {
             saveCanvas();
         }, 4000);
